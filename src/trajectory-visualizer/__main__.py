@@ -1,12 +1,18 @@
 from dash import Dash, Input, Output, callback, dcc, html
 
+from pathlib import Path
 import dash_ag_grid as dag
 import pandas as pd
 import plotly.express as px
 
-rd1 = pd.read_csv('Robot Data/robot1_s1.csv')
-rd4 = pd.read_csv('Robot Data/robot4_s1.csv')
-rd7 = pd.read_csv('Robot Data/robot7_s1.csv')
+from data_loader import load_robot_log
+
+project_dir = Path(__file__).resolve().parents[2]
+data_dir = project_dir / "data"
+
+rd1 = load_robot_log(data_dir / "robot1_s1.csv")
+rd4 = load_robot_log(data_dir / "robot4_s1.csv")
+rd7 = load_robot_log(data_dir / "robot7_s1.csv")
 
 trajectories = pd.concat(
     [
