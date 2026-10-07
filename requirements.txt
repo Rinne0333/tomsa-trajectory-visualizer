@@ -1,0 +1,15 @@
+#Dash Components
+dash
+dash-bootstrap-components
+dash_ag_grid
+plotly
+
+#Data Processing
+numpy
+pyyaml
+pandas
+
+#Data Visualization
+OSMPythonToolspp
+jupyterlab
+
