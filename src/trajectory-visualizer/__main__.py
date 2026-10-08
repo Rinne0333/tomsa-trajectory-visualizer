@@ -1,11 +1,11 @@
 from dash import Dash, Input, Output, callback, dcc, html
-
+from data_loader import load_robot_log
 from pathlib import Path
+
 import dash_ag_grid as dag
 import pandas as pd
 import plotly.express as px
 
-from data_loader import load_robot_log
 
 project_dir = Path(__file__).resolve().parents[2]
 data_dir = project_dir / "data"
