@@ -39,9 +39,10 @@ const fillLight = new THREE.DirectionalLight(0x7eb8a7, 1.2);
 fillLight.position.set(9, 6, -10);
 scene.add(fillLight);
 
-const grid = new THREE.GridHelper(240, 48, 0x51645a, 0x35443d);
+const grid = new THREE.GridHelper(1000, 96, 0x9bd8f5, 0x6fa9c8);
 grid.material.transparent = true;
 grid.material.opacity = 0.55;
+grid.material.color = new THREE.Color(0x9bd8f5);
 scene.add(grid);
 
 const robotRoot = new THREE.Group();
