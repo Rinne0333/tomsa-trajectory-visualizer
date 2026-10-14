@@ -1,8 +1,9 @@
 from dash import Dash, Input, Output, callback, dcc, html
+from flask import jsonify, send_from_directory
 from pathlib import Path
 
 from data_loader import load_robot_log
-from replay import prepare_replay_data
+from replay import build_viewer_payload, prepare_replay_data
 
 
 import dash_ag_grid as dag
@@ -25,6 +26,7 @@ replay_logs = prepare_replay_data(
         "Robot 7": rd7
     }
 )
+viewer_payload = build_viewer_payload(replay_logs)
 
 mission_duration_s = float(
     max(
@@ -56,7 +58,10 @@ fig = px.line_map(
 
 fig.update_traces(mode='lines+markers')
 
-app = Dash()
+app = Dash(
+    assets_folder=str(project_dir / 'assets'),
+    assets_ignore=r'third_person\.(js|css)',
+)
 app.layout = [
     html.Div(children='Trajectory Visualizer', style={'textAlign': 'center', 'fontSize': 30}),
     html.Hr(),
@@ -92,7 +97,19 @@ app.layout = [
             "margin": "12px 20px",
         },
     ),
-        dcc.Graph(
+    html.H2('Third-person replay', style={'margin': '20px 24px 8px'}),
+    html.Iframe(
+        src='/third-person',
+        title='Three-dimensional robot replay',
+        style={
+            'height': '720px',
+            'width': 'calc(100% - 48px)',
+            'margin': '0 24px 24px',
+            'border': '0',
+            'display': 'block',
+        },
+    ),
+    dcc.Graph(
         figure=fig,
         style={'height': '85vh', 'width': '100%'},
         config={'responsive': True},
@@ -100,6 +117,21 @@ app.layout = [
     dcc.RadioItems(options=['Robot 1', 'Robot 4', 'Robot 7'], value='Robot 1', id='viewTable', inline=True),
     dag.AgGrid(id='sendTable', rowData=[], columnDefs=[], dashGridOptions={'suppressFieldDotNotation': True})
 ]
+
+
+@app.server.get('/api/robot-trajectories')
+def robot_trajectories():
+    return jsonify(viewer_payload)
+
+
+@app.server.get('/third-person')
+def third_person_view():
+    return send_from_directory(project_dir / 'assets', 'third_person.html')
+
+
+@app.server.get('/robot-model/<path:filename>')
+def robot_model_file(filename):
+    return send_from_directory(data_dir / 'AUV model', filename)
 
 
 @callback(

@@ -1,0 +1,11 @@
+Model Information:
+* title:	Weaver: Vectored 8 - Thruster ROV / AUV
+* source:	https://sketchfab.com/3d-models/weaver-vectored-8-thruster-rov-auv-a34c315bae734a2eaae97a2029c0a016
+* author:	moyshik (https://sketchfab.com/moyshik)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Weaver: Vectored 8 - Thruster ROV / AUV" (https://sketchfab.com/3d-models/weaver-vectored-8-thruster-rov-auv-a34c315bae734a2eaae97a2029c0a016) by moyshik (https://sketchfab.com/moyshik) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

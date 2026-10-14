@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Third-person replay</title>
+    <link rel="stylesheet" href="/assets/third_person.css">
+    <script type="importmap">
+      {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js"}}
+    </script>
+  </head>
+  <body>
+    <main class="viewer" aria-label="Three-dimensional robot replay">
+      <header class="toolbar">
+        <label class="field" for="robot-select">
+          <span>VEHICLE</span>
+          <select id="robot-select" disabled></select>
+        </label>
+        <div class="telemetry" aria-live="polite">
+          <span class="status-dot" id="status-dot"></span>
+          <span id="status-text">Loading trajectory</span>
+        </div>
+      </header>
+
+      <section class="viewport" aria-label="3D trajectory scene">
+        <canvas id="scene"></canvas>
+        <div class="scene-label">
+          <span class="scene-kicker">LIVE SIMULATION</span>
+          <span id="scene-robot">Robot 1</span>
+        </div>
+        <div class="axis-note" aria-hidden="true">NORTH <i></i> ALTITUDE</div>
+        <div class="loading" id="loading">Loading AUV model...</div>
+      </section>
+
+      <section class="transport" aria-label="Playback controls">
+        <div class="transport-row">
+          <button id="play-button" class="play-button" type="button" disabled aria-label="Play">
+            <span class="play-icon" aria-hidden="true"></span>
+          </button>
+          <div class="timeline">
+            <div class="timeline-labels">
+              <span id="current-time">0.0 s</span>
+              <span id="duration">0.0 s</span>
+            </div>
+            <input id="time-slider" type="range" min="0" max="0" step="0.01" value="0" disabled aria-label="Replay time">
+          </div>
+          <label class="field speed-field" for="speed-select">
+            <span>SPEED</span>
+            <select id="speed-select" aria-label="Playback speed">
+              <option value="0.25">0.25x</option>
+              <option value="0.5">0.5x</option>
+              <option value="1" selected>1x</option>
+              <option value="2">2x</option>
+              <option value="4">4x</option>
+            </select>
+          </label>
+        </div>
+      </section>
+    </main>
+    <script type="module" src="/assets/third_person.js"></script>
+  </body>
+</html>

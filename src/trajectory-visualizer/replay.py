@@ -1,4 +1,7 @@
+import math
+
 import pandas as pd
+
 
 def prepare_replay_data(robot_logs: dict[str, pd.DataFrame],) -> dict[str, pd.DataFrame]:
     ns_per_second = 1_000_000_000
@@ -27,4 +30,62 @@ def prepare_replay_data(robot_logs: dict[str, pd.DataFrame],) -> dict[str, pd.Da
         data["mission_time_s"] = (data["timestamp_ns"] - mission_start_ns) / ns_per_second
 
     return prepared_logs
+
+
+def build_viewer_payload(
+    prepared_logs: dict[str, pd.DataFrame],
+) -> dict[str, object]:
+    """Serialize pose samples in a shared local east/up/north coordinate frame."""
+    earth_radius_m = 6_378_137.0
+    position_x = "pose.pose.position.x"
+    position_y = "pose.pose.position.y"
+    position_z = "pose.pose.position.z"
+    quaternion_columns = [
+        "pose.pose.orientation.x",
+        "pose.pose.orientation.y",
+        "pose.pose.orientation.z",
+        "pose.pose.orientation.w",
+    ]
+
+    first_samples = [
+        data.loc[data["mission_time_s"].idxmin()]
+        for data in prepared_logs.values()
+    ]
+    origin = min(first_samples, key=lambda sample: sample["mission_time_s"])
+    origin_latitude_rad = math.radians(origin[position_x])
+    origin_longitude = origin[position_y]
+    origin_altitude = origin[position_z]
+    meters_per_degree = earth_radius_m * math.pi / 180.0
+
+    robots: dict[str, list[list[float]]] = {}
+    for robot_name, data in prepared_logs.items():
+        latitude_delta = data[position_x] - origin[position_x]
+        longitude_delta = data[position_y] - origin_longitude
+        east_m = longitude_delta * meters_per_degree * math.cos(origin_latitude_rad)
+        north_m = latitude_delta * meters_per_degree
+        altitude_m = data[position_z] - origin_altitude
+
+        samples = pd.DataFrame(
+            {
+                "time": data["mission_time_s"],
+                "east": east_m,
+                "up": altitude_m,
+                "north": north_m,
+                **{
+                    column.rsplit(".", 1)[-1]: data[column]
+                    for column in quaternion_columns
+                },
+            }
+        )
+        robots[robot_name] = samples.astype(float).to_numpy().tolist()
+
+    return {
+        "columns": ["time", "east", "up", "north", "qx", "qy", "qz", "qw"],
+        "origin": {
+            "latitude": float(origin[position_x]),
+            "longitude": float(origin_longitude),
+            "altitude": float(origin_altitude),
+        },
+        "robots": robots,
+    }
         
