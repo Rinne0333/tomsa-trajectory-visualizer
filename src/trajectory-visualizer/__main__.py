@@ -65,57 +65,82 @@ app = Dash(
 app.layout = [
     html.Div(children='Trajectory Visualizer', style={'textAlign': 'center', 'fontSize': 30}),
     html.Hr(),
-        html.Div(
+    dcc.Dropdown(
+        id="view-selector",
+        options=[
+            {"label": "Visão Local", "value": "third-person"},
+            {"label": "Visão Global", "value": "mapa"},
+        ],
+        value="third-person-view",
+        clearable=False,
+        style={"width": "220px", "margin": "12px 24px", "color": "black"},
+    ),
+    html.Div(
+        id="third-person-view",
         children=[
-            html.Div(
-                id="mission-time-display",
+            html.H2("Visão Local", style={"margin": "20px 24px 8px"}),
+            html.Iframe(
+                src="/third-person",
+                title="Three-dimensional robot replay",
                 style={
-                    "textAlign": "center",
-                    "fontSize": "20px",
-                    "fontWeight": "bold",
-                    "fontVariantNumeric": "tabular-nums",
-                    "marginBottom": "16px",
+                    "height": "720px",
+                    "width": "calc(100% - 48px)",
+                    "margin": "0 24px 24px",
+                    "border": "0",
+                    "display": "block",
                 },
-            ),
-            dcc.Slider(
-                id="mission-time-slider",
-                min=0,
-                max=mission_duration_s,
-                step=0.1,
-                value=0,
-                marks={
-                    0: "Início",
-                    mission_duration_s: "Fim",
-                },
-                updatemode="drag",
             ),
         ],
-        style={
-            "padding": "20px 30px",
-            "backgroundColor": "#f4f6f8",
-            "borderRadius": "10px",
-            "margin": "12px 20px",
-        },
     ),
-    html.H2('Third-person replay', style={'margin': '20px 24px 8px'}),
-    html.Iframe(
-        src='/third-person',
-        title='Three-dimensional robot replay',
-        style={
-            'height': '720px',
-            'width': 'calc(100% - 48px)',
-            'margin': '0 24px 24px',
-            'border': '0',
-            'display': 'block',
-        },
+    html.Div(
+        id="map-view",
+        style={"display": "none"},
+        children=[
+            # Put the existing mission-time display and slider here.
+            # Keep their IDs: mission-time-display, mission-time-slider.
+            html.Div(
+                children=[
+                    html.Div(
+                        id="mission-time-display",
+                        style={
+                            "textAlign": "center",
+                            "fontSize": "20px",
+                            "fontWeight": "bold",
+                            "fontVariantNumeric": "tabular-nums",
+                            "marginBottom": "16px",
+                        },
+                    ),
+                    dcc.Slider(
+                        id="mission-time-slider",
+                        min=0,
+                        max=mission_duration_s,
+                        step=0.1,
+                        value=0,
+                        marks={0: "Início", mission_duration_s: "Fim"},
+                        updatemode="drag",
+                    ),
+                ],
+                style={
+                    "padding": "10px 10px",
+                    "backgroundColor": "#f4f6f8",
+                    "borderRadius": "10px",
+                    "margin": "12px 20px",
+                },
+            ),
+            dcc.Graph(
+                figure=fig,
+                style={"height": "85vh", "width": "100%"},
+                config={"responsive": True},
+            ),
+        ],
     ),
-    dcc.Graph(
-        figure=fig,
-        style={'height': '85vh', 'width': '100%'},
-        config={'responsive': True},
-    ),
-    dcc.RadioItems(options=['Robot 1', 'Robot 4', 'Robot 7'], value='Robot 1', id='viewTable', inline=True),
-    dag.AgGrid(id='sendTable', rowData=[], columnDefs=[], dashGridOptions={'suppressFieldDotNotation': True})
+    # dcc.Graph(
+    #     figure=fig,
+    #     style={'height': '85vh', 'width': '100%'},
+    #     config={'responsive': True},
+    # ),
+    # dcc.RadioItems(options=['Robot 1', 'Robot 4', 'Robot 7'], value='Robot 1', id='viewTable', inline=True),
+    # dag.AgGrid(id='sendTable', rowData=[], columnDefs=[], dashGridOptions={'suppressFieldDotNotation': True})
 ]
 
 
@@ -134,11 +159,11 @@ def robot_model_file(filename):
     return send_from_directory(data_dir / 'AUV model', filename)
 
 
-@callback(
-    Output('sendTable', 'rowData'),
-    Output('sendTable', 'columnDefs'),
-    Input('viewTable', 'value'),
-)
+# @callback(
+#     Output('sendTable', 'rowData'),
+#     Output('sendTable', 'columnDefs'),
+#     Input('viewTable', 'value'),
+# )
 def update_table(robot):
     data = {
         'Robot 1': rd1,
@@ -161,6 +186,16 @@ def update_mission_time(selected_time_s):
         f"Tempo de missão: {selected_time_s:.1f} s"
         f" / {mission_duration_s:.1f} s"
     )
+
+@callback(
+    Output("third-person-view", "style"),
+    Output("map-view", "style"),
+    Input("view-selector", "value"),
+)
+def select_view(view):
+    if view == "mapa":
+        return {"display": "none"}, {"display": "block"}
+    return {"display": "block"}, {"display": "none"}
 
 
 if __name__ == '__main__':

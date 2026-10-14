@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Third-person replay</title>
+    <title>Visão Local</title>
     <link rel="stylesheet" href="/assets/third_person.css">
     <script type="importmap">
       {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js"}}
@@ -13,22 +13,22 @@
     <main class="viewer" aria-label="Three-dimensional robot replay">
       <header class="toolbar">
         <label class="field" for="robot-select">
-          <span>VEHICLE</span>
+          <span>Veiculo</span>
           <select id="robot-select" disabled></select>
         </label>
         <div class="telemetry" aria-live="polite">
           <span class="status-dot" id="status-dot"></span>
-          <span id="status-text">Loading trajectory</span>
+          <span id="status-text">Carregar Trajetória</span>
         </div>
       </header>
 
       <section class="viewport" aria-label="3D trajectory scene">
         <canvas id="scene"></canvas>
         <div class="scene-label">
-          <span class="scene-kicker">LIVE SIMULATION</span>
+          <span class="scene-kicker">Simulação em Direto</span>
           <span id="scene-robot">Robot 1</span>
         </div>
-        <div class="axis-note" aria-hidden="true">NORTH <i></i> ALTITUDE</div>
+        <div class="axis-note" aria-hidden="true">Norte <i></i> Altitude  </div>
         <div class="loading" id="loading">Loading AUV model...</div>
       </section>
 
