@@ -12,6 +12,7 @@ import plotly.express as px
 
 
 project_dir = Path(__file__).resolve().parents[2]
+pov_dir = project_dir / "src/trajectory-visualizer/pov-plot"
 data_dir = project_dir / "data"
 
 rd1 = load_robot_log(data_dir / "robot1_s1.csv")
@@ -59,7 +60,7 @@ fig = px.line_map(
 fig.update_traces(mode='lines+markers')
 
 app = Dash(
-    assets_folder=str(project_dir / 'assets'),
+    assets_folder=str(project_dir / 'src/trajectory-visualizer/pov-plot'),
     assets_ignore=r'third_person\.(js|css)',
 )
 app.layout = [
@@ -151,7 +152,12 @@ def robot_trajectories():
 
 @app.server.get('/third-person')
 def third_person_view():
-    return send_from_directory(project_dir / 'assets', 'third_person.html')
+    return send_from_directory(pov_dir, 'third_person.html')
+
+
+@app.server.get('/pov-assets/<path:filename>')
+def pov_asset_file(filename):
+    return send_from_directory(pov_dir, filename)
 
 
 @app.server.get('/robot-model/<path:filename>')
