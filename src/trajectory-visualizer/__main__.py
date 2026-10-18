@@ -110,7 +110,8 @@ app.layout = [
             dcc.Graph(
                 id="mission-map",
                 figure=build_trajectory_map(
-                    get_replay_history(replay_logs, 0.0)
+                    get_replay_history(replay_logs, 0.0),
+                    replay_logs,
                 ),
                 style={"height": "85vh", "width": "100%"},
                 config={"responsive": True},
@@ -178,8 +179,11 @@ def update_mission_view(selected_time_s):
         selected_time_s,
     )
 
-    # Build the map using the selected records.
-    figure = build_trajectory_map(history)
+    # Build the map with past, current and future positions.
+    figure = build_trajectory_map(
+        history,
+        replay_logs,
+    )
 
     # Format the selected time and total duration.
     time_text = (

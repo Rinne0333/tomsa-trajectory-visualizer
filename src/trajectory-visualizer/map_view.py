@@ -11,6 +11,7 @@ ROBOT_COLORS = {
 
 def build_trajectory_map(
     robot_history: dict[str, pd.DataFrame],
+    prepared_logs: dict[str, pd.DataFrame],
 ):
     """Build a map from the available history of each robot."""
 
@@ -47,7 +48,7 @@ def build_trajectory_map(
     # Draw past trajectories as lighter lines without sample markers
     fig.update_traces(
         mode="lines",   # Removes small points from all samples
-        opacity=0.35,   # Makes the course more "bright"
+        opacity=0.08,   # Makes the course more "bright"
         line={"width": 3},
     )
 
@@ -68,14 +69,14 @@ def build_trajectory_map(
                 lon=[current_record["pose.pose.position.y"]],
                 mode="markers+text",
                 marker={
-                    "size": 18,
+                    "size": 11,
                     "color": ROBOT_COLORS[robot_name],
                     "opacity": 1,
                 },
                 text=[robot_name],
                 textposition="top center",
                 textfont={
-                    "size": 14,
+                    "size": 12,
                     "color": ROBOT_COLORS[robot_name],
                 },
                 name=robot_name,
@@ -94,8 +95,55 @@ def build_trajectory_map(
             )
         )
 
-    # Preserve the user's zoom and map position during updates.
+        # Store future trajectories as dashed map layers.
+    future_layers = []
+
+    for robot_name, full_data in prepared_logs.items():
+        history = robot_history[robot_name]
+
+        # Include the current position to connect it to the future path.
+        # Before the robot starts, its entire trajectory is still future.
+        start_index = max(len(history) - 1, 0)
+        future_data = full_data.iloc[start_index:]
+
+        # A line needs at least two points.
+        if len(future_data) < 2:
+            continue
+
+        # GeoJSON coordinates use longitude first, then latitude.
+        coordinates = future_data[
+            [
+                "pose.pose.position.y",
+                "pose.pose.position.x",
+            ]
+        ].to_numpy().tolist()
+
+        # Add a dashed line below the robot markers and past traces.
+        future_layers.append(
+            {
+                "sourcetype": "geojson",
+                "source": {
+                    "type": "Feature",
+                    "properties": {},
+                    "geometry": {
+                        "type": "LineString",
+                        "coordinates": coordinates,
+                    },
+                },
+                "type": "line",
+                "color": ROBOT_COLORS[robot_name],
+                "opacity": 0.45,
+                "line": {
+                    "width": 2,
+                    "dash": [3, 3],
+                },
+                "below": "traces",
+            }
+        )
+    
+    # Apply future layers and preserve the user's map position.
     fig.update_layout(
+        map_layers=future_layers,
         uirevision="mission-map",
         margin={"l": 0, "r": 0, "t": 0, "b": 0},
     )
