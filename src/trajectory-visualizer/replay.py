@@ -88,4 +88,24 @@ def build_viewer_payload(
         },
         "robots": robots,
     }
-        
+
+def get_replay_history(
+    prepared_logs: dict[str, pd.DataFrame],
+    selected_time_s: float,
+) -> dict[str, pd.DataFrame]:
+    """Return each robot's records up to the selected mission time."""
+
+    # Store the filtered data for each robot.
+    history = {}
+
+    # Loop through robot names and their DataFrames.
+    for robot_name, data in prepared_logs.items():
+
+        # True for records at or before the selected time.
+        mask = data["mission_time_s"] <= selected_time_s
+
+        # Keep matching rows without changing the original data.
+        history[robot_name] = data.loc[mask]
+
+    # A robot with no records yet has an empty DataFrame.
+    return history

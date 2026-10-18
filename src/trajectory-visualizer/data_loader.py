@@ -112,4 +112,4 @@ def load_robot_log(csv_path: Path) -> pd.DataFrame:
         # Store the numeric values after validating the column.
         data[column] = converted
 
-    return data
+    return data  

@@ -4,6 +4,8 @@ from pathlib import Path
 
 from data_loader import load_robot_log
 from replay import build_viewer_payload, prepare_replay_data
+from map_view import build_trajectory_map
+from replay import (build_viewer_payload, get_replay_history, prepare_replay_data,)
 
 
 import dash_ag_grid as dag
@@ -35,29 +37,6 @@ mission_duration_s = float(
         for data in replay_logs.values()
     )
 )
-
-trajectories = pd.concat(
-    [
-        data.assign(robot=label)[
-            ['Time', 'pose.pose.position.x', 'pose.pose.position.y', 'robot']
-        ]
-        for label, data in [('Robot 1', rd1), ('Robot 4', rd4), ('Robot 7', rd7)]
-    ],
-    ignore_index=True,
-).sort_values(['robot', 'Time'])
-
-fig = px.line_map(
-    trajectories,
-    lat='pose.pose.position.x',
-    lon='pose.pose.position.y',
-    color='robot',
-    hover_data=['Time'],
-    map_style='open-street-map',
-    center={'lat': 41.4525, 'lon': -8.812},
-    zoom=15,
-)
-
-fig.update_traces(mode='lines+markers')
 
 app = Dash(
     assets_folder=str(project_dir / 'src/trajectory-visualizer/pov-plot'),
@@ -129,7 +108,10 @@ app.layout = [
                 },
             ),
             dcc.Graph(
-                figure=fig,
+                id="mission-map",
+                figure=build_trajectory_map(
+                    get_replay_history(replay_logs, 0.0)
+                ),
                 style={"height": "85vh", "width": "100%"},
                 config={"responsive": True},
             ),
@@ -182,16 +164,31 @@ def update_table(robot):
         [{'field': column} for column in data.columns],
     )
 
-# Update Text when Slider Value Changes
 @callback(
     Output("mission-time-display", "children"),
+    Output("mission-map", "figure"),
     Input("mission-time-slider", "value"),
 )
-def update_mission_time(selected_time_s):
-    return (
-        f"Tempo de missão: {selected_time_s:.1f} s"
+def update_mission_view(selected_time_s):
+    """Update the mission time and map when the slider moves."""
+
+    # Select records up to the chosen mission time.
+    history = get_replay_history(
+        replay_logs,
+        selected_time_s,
+    )
+
+    # Build the map using the selected records.
+    figure = build_trajectory_map(history)
+
+    # Format the selected time and total duration.
+    time_text = (
+        f"Duration Time: {selected_time_s:.1f} s"
         f" / {mission_duration_s:.1f} s"
     )
+
+    # Return values in the same order as the Outputs.
+    return time_text, figure
 
 @callback(
     Output("third-person-view", "style"),
