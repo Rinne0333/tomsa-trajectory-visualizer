@@ -30,6 +30,7 @@ replay_logs = prepare_replay_data(
         "Robot 7": rd7
     }
 )
+
 viewer_payload = build_viewer_payload(replay_logs)
 
 mission_duration_s = float(

@@ -9,11 +9,34 @@ ROBOT_COLORS = {
     "Robot 7": "#9333ea",
 }
 
+def simplify_path(
+    data: pd.DataFrame,
+    max_points: int = 200,
+) -> pd.DataFrame:
+    """Reduce drawing points while keeping the first and last records."""
+
+    if len(data) <= max_points:
+        return data
+
+    # Select evenly spaced row positions, including both endpoints.
+    positions = [
+        i * (len(data) - 1) // (max_points - 1)
+        for i in range(max_points)
+    ]
+
+    return data.iloc[positions]
+
 def build_trajectory_map(
     robot_history: dict[str, pd.DataFrame],
     prepared_logs: dict[str, pd.DataFrame],
 ):
     """Build a map from the available history of each robot."""
+
+        # Reduce only the data used to draw past lines.
+    drawing_history = {
+        robot_name: simplify_path(data)
+        for robot_name, data in robot_history.items()
+    }
 
     # Combine robot histories and identify each robot.
     trajectories = pd.concat(
@@ -53,7 +76,7 @@ def build_trajectory_map(
     )
 
     # Add one current-position marker for each available robot
-    for robot_name, data in robot_history.items():
+    for robot_name, data in drawing_history.items():
 
         # Skip robots that have no records at the selected time
         if data.empty:
@@ -105,6 +128,9 @@ def build_trajectory_map(
         # Before the robot starts, its entire trajectory is still future.
         start_index = max(len(history) - 1, 0)
         future_data = full_data.iloc[start_index:]
+
+        # Reduce future line detail before building its coordinates.
+        future_data = simplify_path(future_data)
 
         # A line needs at least two points.
         if len(future_data) < 2:
