@@ -4,7 +4,7 @@ from pathlib import Path
 
 from data_loader import load_robot_log
 from replay import build_viewer_payload, prepare_replay_data
-from map_view import build_trajectory_map
+from map_view import build_trajectory_map, update_trajectory_map
 from replay import (build_viewer_payload, get_replay_history, prepare_replay_data,)
 
 
@@ -111,6 +111,9 @@ app.layout = [
                                     {"label": "1×", "value": 1},
                                     {"label": "5×", "value": 5},
                                     {"label": "10×", "value": 10},
+                                    {"label": "25×", "value": 25},
+                                    {"label": "50×", "value": 50},
+                                    {"label": "100×", "value": 100},
                                 ],
                                 value=1,
                                 clearable=False,
@@ -229,7 +232,7 @@ def update_table(robot):
     Input("mission-time-slider", "value"),
 )
 def update_mission_view(selected_time_s):
-    """Update the mission time and map when the slider moves."""
+    """Update the mission time and only the changing map data."""
 
     # Select records up to the chosen mission time.
     history = get_replay_history(
@@ -237,20 +240,18 @@ def update_mission_view(selected_time_s):
         selected_time_s,
     )
 
-    # Build the map with past, current and future positions.
-    figure = build_trajectory_map(
+    # Update coordinates without rebuilding the complete figure.
+    figure_patch = update_trajectory_map(
         history,
         replay_logs,
     )
 
-    # Format the selected time and total duration.
     time_text = (
-        f"Duration Time: {selected_time_s:.1f} s"
+        f"Mission time: {selected_time_s:.1f} s"
         f" / {mission_duration_s:.1f} s"
     )
 
-    # Return values in the same order as the Outputs.
-    return time_text, figure
+    return time_text, figure_patch
 
 
 @callback(
