@@ -48,7 +48,7 @@ def build_trajectory_map(
     # Draw past trajectories as lighter lines without sample markers
     fig.update_traces(
         mode="lines",   # Removes small points from all samples
-        opacity=0.08,   # Makes the course more "bright"
+        opacity=0.50,   # Makes the course more "bright"
         line={"width": 3},
     )
 
@@ -132,10 +132,10 @@ def build_trajectory_map(
                 },
                 "type": "line",
                 "color": ROBOT_COLORS[robot_name],
-                "opacity": 0.45,
+                "opacity": 0.12,
                 "line": {
-                    "width": 2,
-                    "dash": [3, 3],
+                    "width": 3,
+                    "dash": [1, 3],
                 },
                 "below": "traces",
             }

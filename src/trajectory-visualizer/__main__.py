@@ -1,4 +1,4 @@
-from dash import Dash, Input, Output, callback, dcc, html
+from dash import Dash, Input, Output, State, callback, ctx, dcc, html
 from flask import jsonify, send_from_directory
 from pathlib import Path
 
@@ -11,6 +11,7 @@ from replay import (build_viewer_payload, get_replay_history, prepare_replay_dat
 import dash_ag_grid as dag
 import pandas as pd
 import plotly.express as px
+import time
 
 
 project_dir = Path(__file__).resolve().parents[2]
@@ -45,16 +46,16 @@ app = Dash(
 app.layout = [
     html.Div(children='Trajectory Visualizer', style={'textAlign': 'center', 'fontSize': 30}),
     html.Hr(),
-    dcc.Dropdown(
-        id="view-selector",
-        options=[
-            {"label": "Visão Local", "value": "third-person"},
-            {"label": "Visão Global", "value": "mapa"},
-        ],
-        value="third-person-view",
-        clearable=False,
-        style={"width": "220px", "margin": "12px 24px", "color": "black"},
-    ),
+        dcc.Dropdown(
+            id="view-selector",
+            options=[
+                {"label": "Visão Local", "value": "third-person"},
+                {"label": "Visão Global", "value": "mapa"},
+            ],
+            value="third-person-view",
+            clearable=False,
+            style={"width": "220px", "margin": "12px 24px", "color": "black"},
+        ),
     html.Div(
         id="third-person-view",
         children=[
@@ -90,6 +91,62 @@ app.layout = [
                             "marginBottom": "16px",
                         },
                     ),
+
+                    # Playback button and speed selector.
+                    html.Div(
+                        children=[
+                            html.Button(
+                                "Play",
+                                id="replay-play-button",
+                                n_clicks=0,
+                                style={
+                                    "padding": "8px 20px",
+                                    "cursor": "pointer",
+                                },
+                            ),
+                            dcc.Dropdown(
+                                id="replay-speed",
+                                options=[
+                                    {"label": "1×", "value": 1},
+                                    {"label": "5×", "value": 5},
+                                    {"label": "10×", "value": 10},
+                                ],
+                                value=1,
+                                clearable=False,
+                                searchable=False,
+                                style={
+                                    "width": "100px",
+                                    "color": "black",
+                                },
+                            ),
+                        ],
+                        style={
+                            "display": "flex",
+                            "justifyContent": "center",
+                            "alignItems": "center",
+                            "gap": "12px",
+                            "marginBottom": "20px",
+                        },
+                    ),
+
+                    # Request playback updates every 250 milliseconds.
+                    dcc.Interval(
+                        id="replay-timer",
+                        interval=250,
+                        n_intervals=0,
+                        disabled=True,
+                    ),
+
+                    # Keep playback state separately for each browser tab.
+                    dcc.Store(
+                        id="replay-state",
+                        data={
+                            "playing": False,
+                            "last_tick": None,
+                            "speed": 1,
+                        },
+                    ),
+
                     dcc.Slider(
                         id="mission-time-slider",
                         min=0,
@@ -194,6 +251,7 @@ def update_mission_view(selected_time_s):
     # Return values in the same order as the Outputs.
     return time_text, figure
 
+
 @callback(
     Output("third-person-view", "style"),
     Output("map-view", "style"),
@@ -204,6 +262,72 @@ def select_view(view):
         return {"display": "none"}, {"display": "block"}
     return {"display": "block"}, {"display": "none"}
 
+
+@callback(
+    Output("mission-time-slider", "value"),
+    Output("replay-timer", "disabled"),
+    Output("replay-play-button", "children"),
+    Output("replay-state", "data"),
+    Input("replay-play-button", "n_clicks"),
+    Input("replay-timer", "n_intervals"),
+    Input("replay-speed", "value"),
+    State("mission-time-slider", "value"),
+    State("replay-state", "data"),
+    prevent_initial_call=True,
+)
+def control_replay(
+    n_clicks,
+    n_intervals,
+    selected_speed,
+    selected_time_s,
+    playback_state,
+):
+    """Control playback and advance the mission slider."""
+
+    # Read the current playback state.
+    playing = playback_state["playing"]
+    previous_speed = playback_state["speed"]
+    last_tick = playback_state["last_tick"]
+    current_time_s = float(selected_time_s)
+
+    # Use a clock that is not affected by system clock adjustments.
+    now = time.monotonic()
+
+    # Advance using the actual elapsed time and the previous speed.
+    if playing and last_tick is not None:
+        elapsed_s = max(0.0, now - last_tick)
+        current_time_s += elapsed_s * previous_speed
+
+    # Toggle playback when the button is pressed.
+    if ctx.triggered_id == "replay-play-button":
+        if playing:
+            playing = False
+        else:
+            # Restart from the beginning if playback has already ended.
+            if current_time_s >= mission_duration_s:
+                current_time_s = 0.0
+
+            playing = True
+
+    # Stop automatically at the end of the mission.
+    if current_time_s >= mission_duration_s:
+        current_time_s = mission_duration_s
+        playing = False
+
+    # Save the state for the next update.
+    new_state = {
+        "playing": playing,
+        "last_tick": now,
+        "speed": selected_speed,
+    }
+
+    # Return values in the same order as the Outputs.
+    return (
+        current_time_s,
+        not playing,
+        "Pause" if playing else "Play",
+        new_state,
+    )
 
 if __name__ == '__main__':
     app.run(debug=True)
