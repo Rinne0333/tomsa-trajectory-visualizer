@@ -15,7 +15,7 @@ LON = "pose.pose.position.y"
 
 def simplify_path(
     data: pd.DataFrame,
-    max_points: int = 200,
+    max_points: int = 1000,
 ) -> pd.DataFrame:
     """Reduce line detail while keeping both endpoints."""
 
@@ -88,7 +88,7 @@ def build_trajectory_map(robot_history, prepared_logs):
                 lon=past[LON].tolist(),
                 mode="lines",
                 line={"width": 3, "color": color},
-                opacity=0.12,
+                opacity=0.7,
                 hoverinfo="skip",
             )
         )
