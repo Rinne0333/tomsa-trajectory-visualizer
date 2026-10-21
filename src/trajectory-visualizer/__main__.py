@@ -7,13 +7,14 @@ from replay import build_viewer_payload, prepare_replay_data
 from map_view import build_trajectory_map, update_trajectory_map
 from replay import (build_viewer_payload, get_replay_history, prepare_replay_data,)
 from mission_table import build_position_rows
+from orientation_view import build_rotation_panels
+
 import dash_ag_grid as dag
-
-
 import dash_ag_grid as dag
 import pandas as pd
 import plotly.express as px
 import time
+
 
 
 project_dir = Path(__file__).resolve().parents[2]
@@ -49,16 +50,16 @@ app = Dash(
 app.layout = [
     html.Div(children='Trajectory Visualizer', style={'textAlign': 'center', 'fontSize': 30}),
     html.Hr(),
-        dcc.Dropdown(
-            id="view-selector",
-            options=[
-                {"label": "Visão Local", "value": "third-person"},
-                {"label": "Visão Global", "value": "mapa"},
-            ],
-            value="third-person-view",
-            clearable=False,
-            style={"width": "220px", "margin": "12px 24px", "color": "black"},
-        ),
+    dcc.Dropdown(
+        id="view-selector",
+        options=[
+            {"label": "Visão Local", "value": "third-person"},
+            {"label": "Visão Global", "value": "mapa"},
+        ],
+        value="third-person-view",
+        clearable=False,
+        style={"width": "220px", "margin": "12px 24px", "color": "black"},
+    ),
     html.Div(
         id="third-person-view",
         children=[
@@ -213,6 +214,61 @@ app.layout = [
                                 },
                             ),
 
+                            # Expand or collapse the rotation matrices.
+                            html.Details(
+                                open=True,
+                                style={
+                                    "flexShrink": 0,
+                                    "backgroundColor": "#f8fafc",
+                                    "color": "#18253b",
+                                    "borderRadius": "10px",
+                                    "padding": "10px 12px",
+                                },
+                                children=[
+                                    html.Summary(
+                                        "Matrizes de rotação",
+                                        style={
+                                            "fontWeight": "bold",
+                                            "cursor": "pointer",
+                                        },
+                                    ),
+
+                                    # Scroll the panels if vertical space is limited.
+                                    html.Div(
+                                        style={
+                                            "maxHeight": "210px",
+                                            "overflowY": "auto",
+                                            "marginTop": "10px",
+                                        },
+                                        children=[
+                                            html.P(
+                                                "Conversão dos quaterniões [x, y, z, w]. "
+                                                "A direção entre referenciais está por confirmar.",
+                                                style={
+                                                    "fontSize": "12px",
+                                                    "color": "#64748b",
+                                                    "margin": "0 0 10px",
+                                                },
+                                            ),
+
+                                            html.Div(
+                                                id="rotation-matrices",
+                                                children=build_rotation_panels(
+                                                    get_replay_history(replay_logs, 0.0)
+                                                ),
+                                                style={
+                                                    "display": "grid",
+                                                    "gridTemplateColumns": (
+                                                        "repeat(auto-fit, minmax(220px, 1fr))"
+                                                    ),
+                                                    "gap": "12px",
+                                                },
+                                            ),
+                                        ],
+                                    ),
+                                ],
+                            ),
+
                             # Scroll the table instead of expanding the panel.
                             html.Div(
                                 style={
@@ -318,6 +374,7 @@ app.layout = [
 ]
 
 
+
 @app.server.get('/api/robot-trajectories')
 def robot_trajectories():
     return jsonify(viewer_payload)
@@ -359,6 +416,7 @@ def update_table(robot):
     Output("mission-time-display", "children"),
     Output("mission-map", "figure"),
     Output("mission-position-table", "rowData"),
+    Output("rotation-matrices", "children"),
     Input("mission-time-slider", "value"),
 )
 def update_mission_view(selected_time_s):
@@ -369,6 +427,9 @@ def update_mission_view(selected_time_s):
         replay_logs,
         selected_time_s,
     )
+
+    # Build rotation panels from the selected records.
+    rotation_panels = build_rotation_panels(history)
 
     # Update only the changing map data.
     figure_patch = update_trajectory_map(
@@ -398,9 +459,13 @@ def update_mission_view(selected_time_s):
         f" / {mission_duration_s:.1f} s"
     )
 
-    # Match the order of the three Outputs.
-    return time_text, figure_patch, position_rows
-
+       # Match the order of the four Outputs.
+    return (
+        time_text,
+        figure_patch,
+        position_rows,
+        rotation_panels,
+    )
 
 @callback(
     Output("third-person-view", "style"),
