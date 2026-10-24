@@ -10,6 +10,6 @@ pyyaml
 pandas
 
 #Data Visualization
-OSMPythonToolspp
+OSMPythonTools
 jupyterlab
 
