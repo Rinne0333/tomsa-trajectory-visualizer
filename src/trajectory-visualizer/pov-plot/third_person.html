@@ -29,6 +29,68 @@
           <span id="scene-robot">Robot 1</span>
         </div>
         <div class="axis-note" aria-hidden="true">Norte <i></i> Altitude  </div>
+        <aside class="overlay-drawer" id="overlay-drawer">
+          <button
+            class="drawer-toggle"
+            id="drawer-toggle"
+            type="button"
+            aria-expanded="false"
+            aria-controls="overlay-content"
+            aria-label="Open overlay panel"
+          >
+            <span class="drawer-icon" aria-hidden="true"></span>
+            <span class="drawer-toggle-label">OVERLAYS</span>
+          </button>
+          <div class="overlay-sidebar" id="overlay-content" aria-label="Scene overlays" inert>
+            <span class="sidebar-heading">OVERLAYS</span>
+            <label class="overlay-toggle" for="axis-toggle">
+              <input id="axis-toggle" type="checkbox" checked>
+              <span>Robot axes</span>
+            </label>
+            <label class="overlay-toggle" for="heading-toggle">
+              <input id="heading-toggle" type="checkbox" checked>
+              <span>Heading vector</span>
+            </label>
+            <section class="depth-panel" id="depth-panel" aria-labelledby="depth-title">
+              <div class="depth-reading">
+                <span id="depth-title">RELATIVE DEPTH</span>
+                <output id="depth-value">0.0 m</output>
+              </div>
+              <div
+                class="depth-gauge"
+                id="depth-gauge"
+                role="meter"
+                aria-label="Relative depth from the first sample"
+                aria-valuemin="0"
+                aria-valuemax="0"
+                aria-valuenow="0"
+                aria-valuetext="0.0 meters"
+              >
+                <div class="depth-scale">
+                  <span class="depth-scale-label depth-scale-minimum" id="depth-min-label">-0.5</span>
+                  <span class="depth-scale-label depth-scale-maximum" id="depth-max-label">0.5</span>
+                  <div class="depth-track">
+                    <div class="depth-zero-line" id="depth-zero-line"></div>
+                    <div class="depth-fill" id="depth-fill"></div>
+                    <div class="depth-marker" id="depth-marker"></div>
+                  </div>
+                </div>
+              </div>
+              <span class="depth-caption">positive down · from first sample</span>
+            </section>
+            <section class="nearby-panel" aria-labelledby="nearby-title">
+              <div class="nearby-heading">
+                <span class="sidebar-heading" id="nearby-title">ROVERS WITHIN 1 KM</span>
+                <span id="nearby-count">0</span>
+              </div>
+              <div class="nearby-stats" id="nearby-stats" aria-live="polite">
+                <span>Nearest <b id="nearby-nearest">—</b></span>
+                <span>Average <b id="nearby-average">—</b></span>
+              </div>
+              <ul class="nearby-list" id="nearby-list" aria-label="Nearby active rovers"></ul>
+            </section>
+          </div>
+        </aside>
         <div class="loading" id="loading">Loading AUV model...</div>
       </section>
 

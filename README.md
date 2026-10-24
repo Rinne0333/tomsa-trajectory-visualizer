@@ -18,5 +18,3 @@ source venv/bin/activate
 ```
 python src/trajectory-visualizer/__main__.py
 ```
-
-
