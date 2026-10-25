@@ -411,7 +411,6 @@ def build_coordinate_panel(rows):
             ("Latitude", format_value(row["latitude"], 7, "°")),
             ("Longitude", format_value(row["longitude"], 7, "°")),
             ("Z do log", format_value(row["position_z"], 2, "")),
-            ("Profundidade", "Por confirmar" if row["position_z"] is not None else "—"),
             ("Instante da medição", format_value(row["record_time_s"], 1, "s")),
             ("Idade da medição", format_value(row["age_s"], 1, "s")),
         ]
