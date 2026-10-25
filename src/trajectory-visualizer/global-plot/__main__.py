@@ -8,6 +8,8 @@ from replay import (build_viewer_payload, get_replay_history, prepare_replay_dat
 from mission_table import build_position_rows
 from orientation_view import build_rotation_panels
 
+from distances import build_distance_rows
+
 import dash_ag_grid as dag
 import time
 
@@ -17,8 +19,6 @@ project_dir = Path(__file__).resolve().parents[3]
 
 data_dir = project_dir / "data"
 pov_dir = project_dir / "src" / "trajectory-visualizer" / "pov-plot"
-pov_dir = project_dir / "src/trajectory-visualizer/pov-plot"
-data_dir = project_dir / "data"
 
 rd1 = load_robot_log(data_dir / "robot1_s1.csv")
 rd4 = load_robot_log(data_dir / "robot4_s1.csv")
@@ -300,10 +300,19 @@ app.layout = [
                                             )
                                         ], style={"overflowX": "auto", "minWidth": 0}),
                                     ]),
-                                    html.Div(id="sidebar-distances", style={"display": "none"}, children=[
-                                        html.H3("Distâncias", style={"fontSize": "16px"}),
-                                        html.Div(id="mission-distance-panel", children="A medição de distâncias entre robôs ainda não está ligada a este painel."),
-                                    ]),
+                                    html.Div(
+                                        id="sidebar-distances",
+                                        style={"display": "none"},
+                                        children=[
+                                            html.H3("Distâncias entre robôs", style={"fontSize": "16px"}),
+                                            html.P(
+                                                "Distâncias horizontais aproximadas, calculadas com as últimas "
+                                                "posições conhecidas. Não incluem Z.",
+                                                style={"fontSize": "12px", "color": "#64748b"},
+                                            ),
+                                            html.Div(id="mission-distance-panel"),
+                                        ],
+                                    ),
                                     html.Div(id="sidebar-rotations", style={"display": "none"}, children=[
                                         html.P(
                                             "Conversão dos quaterniões [x, y, z, w]. "
@@ -337,6 +346,39 @@ app.layout = [
         ],
     ),
 ]
+
+
+def build_distance_panel(rows):
+    """Display one compact card per robot pair."""
+    cards = []
+    for row in rows:
+        if row["distance_m"] is None:
+            value_text = "Sem dados para ambos os robôs"
+            age_text = ""
+        else:
+            value_text = f"≈ {row['distance_m']:.1f} m"
+            age_text = (
+                "Idade das posições, pela ordem do par: "
+                f"{row['first_age_s']:.1f} s / {row['second_age_s']:.1f} s"
+            )
+        cards.append(
+            html.Div(
+                children=[
+                    html.Div(row["pair"], style={"fontWeight": "bold"}),
+                    html.Div(value_text, style={
+                        "fontSize": "20px", "margin": "8px 0",
+                        "fontVariantNumeric": "tabular-nums",
+                    }),
+                    html.Div(age_text, style={"fontSize": "12px", "color": "#64748b"}),
+                ],
+                style={
+                    "padding": "12px", "marginBottom": "10px",
+                    "backgroundColor": "#ffffff", "border": "1px solid #e2e8f0",
+                    "borderRadius": "8px",
+                },
+            )
+        )
+    return cards
 
 
 # Sidebar visibility and section selection.
@@ -427,55 +469,35 @@ def update_table(robot):
     Output("mission-map", "figure"),
     Output("mission-position-table", "rowData"),
     Output("rotation-matrices", "children"),
+    Output("mission-distance-panel", "children"),
     Input("mission-time-slider", "value"),
 )
 def update_mission_view(selected_time_s):
-    """Update the time, map and coordinate table together."""
+    """Update trajectories and all panels from the same mission instant."""
+    history = get_replay_history(replay_logs, selected_time_s)
 
-    # Select the records available at the chosen time.
-    history = get_replay_history(
-        replay_logs,
-        selected_time_s,
-    )
-
-    # Build rotation panels from the selected records.
+    # Update trajectories only; distances never modify map traces.
+    figure_patch = update_trajectory_map(history, replay_logs)
     rotation_panels = build_rotation_panels(history)
-
-    # Update only the changing map data.
-    figure_patch = update_trajectory_map(
-        history,
-        replay_logs,
-    )
-
-    # Prepare the latest position of each robot.
-    position_rows = build_position_rows(
-        history,
-        replay_logs,
-        selected_time_s,
-    )
+    position_rows = build_position_rows(history, replay_logs, selected_time_s)
 
     # Round values only for table presentation.
     for row in position_rows:
         for field in ("latitude", "longitude"):
             if row[field] is not None:
                 row[field] = round(row[field], 7)
-
         for field in ("position_z", "record_time_s", "age_s"):
             if row[field] is not None:
                 row[field] = round(row[field], 2)
 
+    # Calculate every unique pair whenever the mission time changes.
+    distance_rows = build_distance_rows(history, selected_time_s)
+    distance_panel = build_distance_panel(distance_rows)
     time_text = (
         f"Mission time: {selected_time_s:.1f} s"
         f" / {mission_duration_s:.1f} s"
     )
-
-    # Match the order of the four Outputs.
-    return (
-        time_text,
-        figure_patch,
-        position_rows,
-        rotation_panels,
-    )
+    return time_text, figure_patch, position_rows, rotation_panels, distance_panel
 
 @callback(
     Output("third-person-view", "style"),
@@ -553,6 +575,7 @@ def control_replay(
         "Pause" if playing else "Play",
         new_state,
     )
+
 
 if __name__ == '__main__':
     app.run(debug=True)
