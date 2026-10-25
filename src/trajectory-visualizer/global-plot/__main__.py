@@ -10,8 +10,8 @@ from orientation_view import build_rotation_panels
 
 from distances import build_distance_rows
 
-import dash_ag_grid as dag
 import time
+import numpy as np
 
 
 # Find the project root from this script's new location.
@@ -242,64 +242,29 @@ app.layout = [
                                             {"label": "Coordenadas", "value": "coordinates"},
                                             {"label": "Distâncias", "value": "distances"},
                                             {"label": "Matrizes de rotação", "value": "rotations"},
+                                            {"label": "Velocidades", "value": "velocities"},
                                         ],
                                         value="coordinates", clearable=False, searchable=False,
                                         style={"margin": "8px 0 16px"},
                                     ),
                                     # Keep all outputs mounted so existing callbacks still work.
-                                    html.Div(id="sidebar-coordinates", children=[
-                                        html.H3("Coordenadas", style={"fontSize": "16px"}),
-                                        html.P("Última posição conhecida. Idade = tempo selecionado − tempo da medição. Z mantém o valor do log.", style={"fontSize": "12px"}),
-                                        html.Div(children=[
-                                            dag.AgGrid(
-                                                id="mission-position-table",
-                                                columnDefs=[
-                                                    {
-                                                        "headerName": "Robô",
-                                                        "field": "robot",
-                                                    },
-                                                    {
-                                                        "headerName": "Estado",
-                                                        "field": "status",
-                                                    },
-                                                    {
-                                                        "headerName": "Latitude (°)",
-                                                        "field": "latitude",
-                                                    },
-                                                    {
-                                                        "headerName": "Longitude (°)",
-                                                        "field": "longitude",
-                                                    },
-                                                    {
-                                                        "headerName": "Z — valor do log",
-                                                        "field": "position_z",
-                                                    },
-                                                    {
-                                                        "headerName": "Medição (s)",
-                                                        "field": "record_time_s",
-                                                    },
-                                                    {
-                                                        "headerName": "Idade (s)",
-                                                        "field": "age_s",
-                                                    },
-                                                ],
-                                                rowData=[],
-                                                defaultColDef={
-                                                    "resizable": True,
-                                                    "sortable": False,
-                                                    "flex": 1,
-                                                    "minWidth": 130,
-                                                },
-                                                dashGridOptions={
-                                                    "domLayout": "autoHeight",
-                                                    "rowHeight": 32,
-                                                    "headerHeight": 34,
-                                                    "animateRows": False,
-                                                },
-                                                style={"width": "100%"},
-                                            )
-                                        ], style={"overflowX": "auto", "minWidth": 0}),
-                                    ]),
+                                    html.Div(
+                                        id="sidebar-coordinates",
+                                        children=[
+                                            html.Label("Robô a consultar", htmlFor="coordinate-robot-selector"),
+                                            dcc.Dropdown(
+                                                id="coordinate-robot-selector",
+                                                options=[
+                                                    {"label": name, "value": name} for name in replay_logs
+                                                ] + [{"label": "Todos os robôs", "value": "all"}],
+                                                value=next(iter(replay_logs)),
+                                                clearable=False,
+                                                searchable=False,
+                                                style={"margin": "8px 0 12px"},
+                                            ),
+                                            html.Div(id="mission-coordinate-panel"),
+                                        ],
+                                    ),
                                     html.Div(
                                         id="sidebar-distances",
                                         style={"display": "none"},
@@ -311,6 +276,28 @@ app.layout = [
                                                 style={"fontSize": "12px", "color": "#64748b"},
                                             ),
                                             html.Div(id="mission-distance-panel"),
+                                        ],
+                                    ),
+                                    html.Div(
+                                        id="sidebar-velocities",
+                                        style={"display": "none"},
+                                        children=[
+                                            html.Label("Robô a consultar", htmlFor="velocity-robot-selector"),
+                                            dcc.Dropdown(
+                                                id="velocity-robot-selector",
+                                                options=[{"label": name, "value": name} for name in replay_logs]
+                                                + [{"label": "Todos os robôs", "value": "all"}],
+                                                value=next(iter(replay_logs)),
+                                                clearable=False,
+                                                searchable=False,
+                                                style={"margin": "8px 0 12px"},
+                                            ),
+                                            html.P(
+                                                "Velocidades do log, expressas no referencial indicado. "
+                                                "Unidades apresentadas segundo a convenção ROS: m/s e rad/s.",
+                                                style={"fontSize": "12px", "color": "#64748b"},
+                                            ),
+                                            html.Div(id="mission-velocity-panel"),
                                         ],
                                     ),
                                     html.Div(id="sidebar-rotations", style={"display": "none"}, children=[
@@ -381,6 +368,150 @@ def build_distance_panel(rows):
     return cards
 
 
+def build_coordinate_panel(rows):
+    """Display position and measurement details as compact robot cards."""
+    cards = []
+    for row in rows:
+        def format_value(value, decimals, unit):
+            return "—" if value is None else f"{value:.{decimals}f} {unit}"
+
+        # Z is displayed without assuming its vertical reference or units.
+        fields = [
+            ("Latitude", format_value(row["latitude"], 7, "°")),
+            ("Longitude", format_value(row["longitude"], 7, "°")),
+            ("Z do log", format_value(row["position_z"], 2, "")),
+            ("Profundidade", "Por confirmar" if row["position_z"] is not None else "—"),
+            ("Instante da medição", format_value(row["record_time_s"], 1, "s")),
+            ("Idade da medição", format_value(row["age_s"], 1, "s")),
+        ]
+        entries = []
+        for label, value in fields:
+            entries.extend([
+                html.Dt(label, style={"color": "#64748b", "fontSize": "12px"}),
+                html.Dd(value, style={
+                    "margin": "2px 0 10px", "fontWeight": "600",
+                    "fontVariantNumeric": "tabular-nums", "overflowWrap": "anywhere",
+                }),
+            ])
+        # State describes record availability, independently of Play/Pause.
+        status = {
+            "A aguardar": "Sem registos neste instante",
+            "Em reprodução": "Registo disponível",
+            "Log terminado": "Última posição — log terminado",
+        }.get(row["status"], row["status"])
+        cards.append(html.Div(
+            children=[
+                html.Div(row["robot"], style={"fontWeight": "bold", "fontSize": "16px"}),
+                html.Div(status, style={"fontSize": "12px", "color": "#64748b", "margin": "4px 0 12px"}),
+                html.Dl(entries, style={"margin": 0}),
+                html.P(
+                    "Profundidade por confirmar: falta conhecer o significado, "
+                    "a unidade e o zero de Z. Idade = tempo selecionado − tempo da medição.",
+                    style={"fontSize": "11px", "color": "#64748b", "margin": "0"},
+                ),
+            ],
+            style={
+                "padding": "12px", "marginBottom": "10px",
+                "backgroundColor": "#ffffff", "border": "1px solid #e2e8f0",
+                "borderRadius": "8px",
+            },
+        ))
+    return cards
+
+
+@callback(
+    Output("mission-coordinate-panel", "children"),
+    Input("mission-time-slider", "value"),
+    Input("coordinate-robot-selector", "value"),
+)
+def update_coordinate_panel(selected_time_s, selected_robot):
+    """Update coordinates without refreshing the map when selecting a robot."""
+    history = get_replay_history(replay_logs, selected_time_s)
+    rows = build_position_rows(history, replay_logs, selected_time_s)
+    if selected_robot != "all":
+        rows = [row for row in rows if row["robot"] == selected_robot]
+    return build_coordinate_panel(rows)
+
+
+def build_velocity_panel(robot_history, prepared_logs, selected_time_s):
+    """Display the latest logged velocities without changing replay speed."""
+    cards = []
+    for name, history in robot_history.items():
+        content = [html.Div(name, style={"fontWeight": "bold", "fontSize": "16px"})]
+        if history.empty:
+            content.append(html.P("Sem registos neste instante."))
+        else:
+            current = history.iloc[-1]
+            record_time_s = float(current["mission_time_s"])
+            age_s = max(0.0, selected_time_s - record_time_s)
+            log_ended = selected_time_s > float(prepared_logs[name]["mission_time_s"].iloc[-1])
+
+            # Read the components in the robot's reported velocity frame.
+            linear = np.array([
+                current[f"twist.twist.linear.{axis}"] for axis in ("x", "y", "z")
+            ], dtype=float)
+            angular = np.array([
+                current[f"twist.twist.angular.{axis}"] for axis in ("x", "y", "z")
+            ], dtype=float)
+
+            # The vector norm gives speed regardless of direction.
+            speed_m_s = float(np.linalg.norm(linear))
+            content.extend([
+                html.Div(
+                    "Última medição — log terminado" if log_ended else "Última medição disponível",
+                    style={"fontSize": "12px", "color": "#64748b", "marginTop": "4px"},
+                ),
+                html.Div("Velocidade total", style={"fontSize": "12px", "marginTop": "12px"}),
+                html.Div(f"{speed_m_s:.3f} m/s", style={
+                    "fontSize": "24px", "fontWeight": "bold",
+                    "fontVariantNumeric": "tabular-nums", "marginBottom": "12px",
+                }),
+            ])
+            for title, vector, unit in [
+                ("Velocidade linear", linear, "m/s"),
+                ("Velocidade angular", angular, "rad/s"),
+            ]:
+                entries = []
+                for axis, value in zip(("X", "Y", "Z"), vector):
+                    entries.extend([
+                        html.Dt(axis, style={"color": "#64748b"}),
+                        html.Dd(f"{float(value):.4f} {unit}", style={
+                            "margin": 0, "textAlign": "right",
+                            "fontVariantNumeric": "tabular-nums", "overflowWrap": "anywhere",
+                        }),
+                    ])
+                content.extend([
+                    html.Div(title, style={"fontWeight": "600", "fontSize": "13px", "marginBottom": "6px"}),
+                    html.Dl(entries, style={
+                        "display": "grid", "gridTemplateColumns": "auto minmax(0, 1fr)",
+                        "gap": "6px 12px", "margin": "0 0 14px", "fontSize": "13px",
+                    }),
+                ])
+            content.append(html.Div([
+                html.Div(f"Referencial: {current['child_frame_id']}"),
+                html.Div(f"Medição: {record_time_s:.1f} s de missão"),
+                html.Div(f"Idade da medição: {age_s:.1f} s"),
+            ], style={"fontSize": "12px", "color": "#64748b", "lineHeight": "1.6"}))
+        cards.append(html.Div(content, style={
+            "padding": "12px", "marginBottom": "10px", "backgroundColor": "#ffffff",
+            "border": "1px solid #e2e8f0", "borderRadius": "8px",
+        }))
+    return cards
+
+
+@callback(
+    Output("mission-velocity-panel", "children"),
+    Input("mission-time-slider", "value"),
+    Input("velocity-robot-selector", "value"),
+)
+def update_velocity_panel(selected_time_s, selected_robot):
+    """Refresh velocity cards independently of the map."""
+    history = get_replay_history(replay_logs, selected_time_s)
+    if selected_robot != "all":
+        history = {selected_robot: history[selected_robot]}
+    return build_velocity_panel(history, replay_logs, selected_time_s)
+
+
 # Sidebar visibility and section selection.
 @callback(
     Output("mission-workspace", "style"),
@@ -417,13 +548,14 @@ def toggle_mission_sidebar(n_clicks):
     Output("sidebar-coordinates", "style"),
     Output("sidebar-distances", "style"),
     Output("sidebar-rotations", "style"),
+    Output("sidebar-velocities", "style"),
     Input("sidebar-section", "value"),
 )
 def select_sidebar_section(section):
     """Show one section without removing the other callback targets."""
     return tuple(
         {"display": "block" if section == name else "none"}
-        for name in ("coordinates", "distances", "rotations")
+        for name in ("coordinates", "distances", "rotations", "velocities")
     )
 
 
@@ -467,7 +599,6 @@ def update_table(robot):
 @callback(
     Output("mission-time-display", "children"),
     Output("mission-map", "figure"),
-    Output("mission-position-table", "rowData"),
     Output("rotation-matrices", "children"),
     Output("mission-distance-panel", "children"),
     Input("mission-time-slider", "value"),
@@ -479,16 +610,6 @@ def update_mission_view(selected_time_s):
     # Update trajectories only; distances never modify map traces.
     figure_patch = update_trajectory_map(history, replay_logs)
     rotation_panels = build_rotation_panels(history)
-    position_rows = build_position_rows(history, replay_logs, selected_time_s)
-
-    # Round values only for table presentation.
-    for row in position_rows:
-        for field in ("latitude", "longitude"):
-            if row[field] is not None:
-                row[field] = round(row[field], 7)
-        for field in ("position_z", "record_time_s", "age_s"):
-            if row[field] is not None:
-                row[field] = round(row[field], 2)
 
     # Calculate every unique pair whenever the mission time changes.
     distance_rows = build_distance_rows(history, selected_time_s)
@@ -497,7 +618,7 @@ def update_mission_view(selected_time_s):
         f"Mission time: {selected_time_s:.1f} s"
         f" / {mission_duration_s:.1f} s"
     )
-    return time_text, figure_patch, position_rows, rotation_panels, distance_panel
+    return time_text, figure_patch, rotation_panels, distance_panel
 
 @callback(
     Output("third-person-view", "style"),
