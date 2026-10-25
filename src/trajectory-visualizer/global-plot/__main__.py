@@ -3,10 +3,10 @@ from flask import jsonify, send_from_directory
 from pathlib import Path
 
 from data_loader import load_robot_log
-from map_view import build_trajectory_map, update_trajectory_map
+from map_view import build_trajectory_map, update_trajectory_map, ROBOT_COLORS
 from replay import (build_viewer_payload, get_replay_history, prepare_replay_data,)
 from mission_table import build_position_rows
-from orientation_view import build_rotation_panels
+from orientation_view import build_rotation_panels as original_rotation_panels
 
 from distances import build_distance_rows
 
@@ -41,6 +41,98 @@ mission_duration_s = float(
         for data in replay_logs.values()
     )
 )
+
+# Shared styles keep every sidebar card consistent.
+BUTTON_STYLE = {
+    "padding": "8px 12px", "border": "1px solid #dbe3ee",
+    "borderRadius": "8px", "backgroundColor": "#ffffff",
+    "color": "#334155", "cursor": "pointer", "fontWeight": "600",
+    "fontSize": "13px", "whiteSpace": "nowrap",
+}
+
+
+def format_mission_time(seconds):
+    """Format mission duration without wrapping after 24 hours."""
+    total = max(0, int(float(seconds)))
+    hours, remainder = divmod(total, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+
+def robot_label(name):
+    """Reuse the map color without relying on color alone."""
+    return html.Span([
+        html.Span(style={
+            "display": "inline-block", "width": "8px", "height": "8px",
+            "borderRadius": "50%", "backgroundColor": ROBOT_COLORS.get(name, "#64748b"),
+            "marginRight": "7px",
+        }),
+        name,
+    ], style={"fontWeight": "600", "fontSize": "13px"})
+
+
+def polish_cards(cards, names=None):
+    """Apply one visual style to coordinate, velocity and rotation cards."""
+    for index, card in enumerate(cards):
+        name = names[index] if names else None
+        card.style = {
+            **(card.style or {}), "padding": "14px", "marginBottom": "10px",
+            "backgroundColor": "#ffffff", "border": "1px solid #e2e8f0",
+            "borderRadius": "12px", "boxShadow": "0 2px 6px rgba(15,23,42,0.03)",
+            "fontVariantNumeric": "tabular-nums", "minWidth": 0,
+        }
+        if name:
+            card.style["borderLeft"] = f"3px solid {ROBOT_COLORS.get(name, '#64748b')}"
+            card.children[0] = robot_label(name)
+    return cards
+
+
+def build_rotation_panels(history):
+    """Keep rotation calculations in the existing module."""
+    return polish_cards(original_rotation_panels(history), list(history))
+
+
+def mission_camera(logs):
+    """Estimate a padded overview for this geographically compact mission."""
+    latitudes = np.concatenate([d["pose.pose.position.x"].to_numpy() for d in logs.values()])
+    longitudes = np.concatenate([d["pose.pose.position.y"].to_numpy() for d in logs.values()])
+    south, north = float(latitudes.min()), float(latitudes.max())
+    west, east = float(longitudes.min()), float(longitudes.max())
+    # Measure extent in normalized Web Mercator coordinates.
+    phi = np.radians(np.clip([south, north], -85.0, 85.0))
+    y = (1 - np.log(np.tan(np.pi / 4 + phi / 2)) / np.pi) / 2
+    span = max((east - west) / 360, float(abs(y[1] - y[0])), 1e-8)
+    # Conservative viewport allowance; exact fit depends on screen size.
+    zoom = float(np.clip(np.log2(220 / (512 * span)) - 0.35, 0, 18))
+    middle_y = float(y.mean())
+    center_lat = float(np.degrees(np.arctan(np.sinh(np.pi * (1 - 2 * middle_y)))))
+    return {"lat": center_lat, "lon": (west + east) / 2}, zoom
+
+
+MISSION_CENTER, MISSION_ZOOM = mission_camera(replay_logs)
+
+
+def build_initial_map(history, logs):
+    """Set the visual style once; normal replay updates keep the camera."""
+    figure = build_trajectory_map(history, logs)
+    for trace in figure.data:
+        if str(trace.uid).endswith("-past"):
+            trace.opacity = 0.18
+        elif str(trace.uid).endswith("-current"):
+            trace.marker.size = 13
+    figure.update_layout(
+        map_center=MISSION_CENTER, map_zoom=MISSION_ZOOM,
+        font={"family": "Arial, sans-serif", "color": "#334155"},
+        legend={
+            "orientation": "h", "x": 0.01, "y": 0.99,
+            "xanchor": "left", "yanchor": "top",
+            "bgcolor": "rgba(255,255,255,0.9)",
+            "bordercolor": "#e2e8f0", "borderwidth": 1,
+            "font": {"size": 11},
+        },
+    )
+    return figure
+
 
 app = Dash(
     assets_folder=str(project_dir / 'src/trajectory-visualizer/pov-plot'),
@@ -83,108 +175,47 @@ app.layout = [
             html.Div(
                 style={
                     "display": "flex", "flexDirection": "column",
-                    "height": "calc(100dvh - 160px)", "minHeight": "520px",
+                    "height": "calc(100dvh - 140px)", "minHeight": "520px",
                     "gap": "10px", "padding": "0 20px 16px",
+                    "fontFamily": "system-ui, -apple-system, sans-serif",
+                    "fontVariantNumeric": "tabular-nums",
                     "boxSizing": "border-box",
                 },
                 children=[
                     html.Div(
                         style={
-                            "flexShrink": 0,
-                            "padding": "12px 16px",
-                            "backgroundColor": "#f4f6f8",
-                            "borderRadius": "10px",
-                            "color": "#18253b",
+                            "flexShrink": 0, "padding": "12px 16px 8px",
+                            "backgroundColor": "#ffffff", "border": "1px solid #e2e8f0",
+                            "borderRadius": "12px", "color": "#18253b",
                         },
                         children=[
-                            html.Div(
-                                id="mission-time-display",
-                                style={
-                                    "textAlign": "center",
-                                    "fontSize": "20px",
-                                    "fontWeight": "bold",
-                                    "fontVariantNumeric": "tabular-nums",
-                                    "marginBottom": "10px",
-                                },
-                            ),
-
-                            html.Div(
-                                style={
-                                    "display": "flex",
-                                    "justifyContent": "center",
-                                    "alignItems": "center",
-                                    "gap": "12px",
-                                    "marginBottom": "12px",
-                                },
-                                children=[
-                                    html.Button(
-                                        "Play",
-                                        id="replay-play-button",
-                                        n_clicks=0,
-                                        style={
-                                            "padding": "8px 20px",
-                                            "cursor": "pointer",
-                                        },
-                                    ),
-                                    dcc.Dropdown(
-                                        id="replay-speed",
-                                        options=[
-                                            {"label": "1×", "value": 1},
-                                            {"label": "5×", "value": 5},
-                                            {"label": "10×", "value": 10},
-                                            {"label": "25×", "value": 25},
-                                            {"label": "50×", "value": 50},
-                                            {"label": "100×", "value": 100},
-                                        ],
-                                        value=1,
-                                        clearable=False,
-                                        searchable=False,
-                                        style={
-                                            "width": "100px",
-                                            "color": "black",
-                                        },
-                                    ),
-                                ],
-                            ),
-
-                            dcc.Interval(
-                                id="replay-timer",
-                                interval=250,
-                                n_intervals=0,
-                                disabled=True,
-                            ),
-
-                            dcc.Store(
-                                id="replay-state",
-                                data={
-                                    "playing": False,
-                                    "last_tick": None,
-                                    "speed": 1,
-                                },
-                            ),
-
+                            html.Div(style={
+                                "display": "flex", "alignItems": "center", "gap": "10px",
+                                "flexWrap": "wrap", "marginBottom": "12px",
+                            }, children=[
+                                html.Button("▶ Reproduzir", id="replay-play-button", n_clicks=0,
+                                    style={**BUTTON_STYLE, "backgroundColor": "#0f172a", "color": "white", "minWidth": "120px"}),
+                                dcc.Dropdown(
+                                    id="replay-speed",
+                                    options=[{"label": f"{v}×", "value": v} for v in (1, 5, 10, 25, 50, 100)],
+                                    value=1, clearable=False, searchable=False,
+                                    style={"width": "88px", "fontSize": "13px"},
+                                ),
+                                html.Div(id="mission-time-display", style={
+                                    "fontSize": "15px", "fontWeight": "600", "fontVariantNumeric": "tabular-nums",
+                                    "flex": "1 1 180px", "textAlign": "center",
+                                }),
+                                html.Button("Enquadrar missão", id="fit-mission-map", n_clicks=0, style=BUTTON_STYLE),
+                                html.Button("Ocultar painel", id="toggle-mission-sidebar", n_clicks=0,
+                                    style=BUTTON_STYLE, **{"aria-controls": "mission-sidebar", "aria-expanded": "true"}),
+                            ]),
+                            dcc.Interval(id="replay-timer", interval=250, n_intervals=0, disabled=True),
+                            dcc.Store(id="replay-state", data={"playing": False, "last_tick": None, "speed": 1}),
                             dcc.Slider(
-                                id="mission-time-slider",
-                                min=0,
-                                max=mission_duration_s,
-                                step=0.1,
-                                value=0,
-                                marks={
-                                    0: "Início",
-                                    mission_duration_s: "Fim",
-                                },
-                                updatemode="drag",
+                                id="mission-time-slider", min=0, max=mission_duration_s, step=0.1, value=0,
+                                marks={0: "Início", mission_duration_s: "Fim"}, updatemode="drag",
                             ),
                         ],
-                    ),
-                    html.Div(
-                        html.Button(
-                            "Ocultar painel", id="toggle-mission-sidebar",
-                            n_clicks=0,
-                            style={"padding": "8px 14px", "cursor": "pointer"},
-                            **{"aria-controls": "mission-sidebar", "aria-expanded": "true"},
-                        ),
-                        style={"textAlign": "right", "flexShrink": 0},
                     ),
                     # Five shares for the map; at most two for the sidebar.
                     html.Div(
@@ -207,7 +238,7 @@ app.layout = [
                                 children=[
                                     dcc.Graph(
                                         id="mission-map",
-                                        figure=build_trajectory_map(
+                                        figure=build_initial_map(
                                             get_replay_history(replay_logs, 0.0),
                                             replay_logs,
                                         ),
@@ -231,7 +262,7 @@ app.layout = [
                                 style={
                                     "minWidth": 0, "minHeight": 0,
                                     "overflow": "auto", "boxSizing": "border-box",
-                                    "padding": "12px", "backgroundColor": "#f8fafc",
+                                    "padding": "14px", "backgroundColor": "#f8fafc",
                                     "color": "#18253b", "borderLeft": "1px solid #e2e8f0",
                                 },
                                 children=[
@@ -351,9 +382,9 @@ def build_distance_panel(rows):
         cards.append(
             html.Div(
                 children=[
-                    html.Div(row["pair"], style={"fontWeight": "bold"}),
+                    html.Div([robot_label(name.strip()) for name in row["pair"].split("↔")], style={"display": "flex", "gap": "10px", "flexWrap": "wrap"}),
                     html.Div(value_text, style={
-                        "fontSize": "20px", "margin": "8px 0",
+                        "fontSize": "26px", "fontWeight": "600", "margin": "10px 0",
                         "fontVariantNumeric": "tabular-nums",
                     }),
                     html.Div(age_text, style={"fontSize": "12px", "color": "#64748b"}),
@@ -365,7 +396,7 @@ def build_distance_panel(rows):
                 },
             )
         )
-    return cards
+    return polish_cards(cards)
 
 
 def build_coordinate_panel(rows):
@@ -395,9 +426,9 @@ def build_coordinate_panel(rows):
             ])
         # State describes record availability, independently of Play/Pause.
         status = {
-            "A aguardar": "Sem registos neste instante",
-            "Em reprodução": "Registo disponível",
-            "Log terminado": "Última posição — log terminado",
+            "A aguardar": "A aguardar",
+            "Em reprodução": "Dados disponíveis",
+            "Log terminado": "Log terminado",
         }.get(row["status"], row["status"])
         cards.append(html.Div(
             children=[
@@ -416,7 +447,7 @@ def build_coordinate_panel(rows):
                 "borderRadius": "8px",
             },
         ))
-    return cards
+    return polish_cards(cards, [row["robot"] for row in rows])
 
 
 @callback(
@@ -496,7 +527,7 @@ def build_velocity_panel(robot_history, prepared_logs, selected_time_s):
             "padding": "12px", "marginBottom": "10px", "backgroundColor": "#ffffff",
             "border": "1px solid #e2e8f0", "borderRadius": "8px",
         }))
-    return cards
+    return polish_cards(cards, list(robot_history))
 
 
 @callback(
@@ -533,7 +564,7 @@ def toggle_mission_sidebar(n_clicks):
     sidebar_style = {
         "display": "block" if visible else "none",
         "minWidth": 0, "minHeight": 0, "overflow": "auto",
-        "boxSizing": "border-box", "padding": "12px",
+        "boxSizing": "border-box", "padding": "14px",
         "backgroundColor": "#f8fafc", "color": "#18253b",
         "borderLeft": "1px solid #e2e8f0",
     }
@@ -602,21 +633,34 @@ def update_table(robot):
     Output("rotation-matrices", "children"),
     Output("mission-distance-panel", "children"),
     Input("mission-time-slider", "value"),
+    Input("fit-mission-map", "n_clicks"),
 )
-def update_mission_view(selected_time_s):
+def update_mission_view(selected_time_s, fit_clicks):
     """Update trajectories and all panels from the same mission instant."""
     history = get_replay_history(replay_logs, selected_time_s)
 
-    # Update trajectories only; distances never modify map traces.
-    figure_patch = update_trajectory_map(history, replay_logs)
+    # A button click rebuilds the view once; replay keeps lightweight patches.
+    if "fit-mission-map.n_clicks" in ctx.triggered_prop_ids:
+        figure_patch = build_initial_map(history, replay_logs)
+        revision = f"overview-{fit_clicks}"
+        figure_patch.update_layout(
+            uirevision=revision,
+            map_uirevision=revision,
+            map_center=dict(MISSION_CENTER),
+            map_zoom=MISSION_ZOOM,
+            map_bearing=0,
+            map_pitch=0,
+        )
+    else:
+        figure_patch = update_trajectory_map(history, replay_logs)
     rotation_panels = build_rotation_panels(history)
 
     # Calculate every unique pair whenever the mission time changes.
     distance_rows = build_distance_rows(history, selected_time_s)
     distance_panel = build_distance_panel(distance_rows)
     time_text = (
-        f"Mission time: {selected_time_s:.1f} s"
-        f" / {mission_duration_s:.1f} s"
+        f"{format_mission_time(selected_time_s)}"
+        f" / {format_mission_time(mission_duration_s)}"
     )
     return time_text, figure_patch, rotation_panels, distance_panel
 
@@ -693,7 +737,7 @@ def control_replay(
     return (
         current_time_s,
         not playing,
-        "Pause" if playing else "Play",
+        "Ⅱ Pausar" if playing else "▶ Reproduzir",
         new_state,
     )
 
