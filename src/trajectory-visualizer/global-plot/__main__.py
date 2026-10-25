@@ -3,21 +3,20 @@ from flask import jsonify, send_from_directory
 from pathlib import Path
 
 from data_loader import load_robot_log
-from replay import build_viewer_payload, prepare_replay_data
 from map_view import build_trajectory_map, update_trajectory_map
 from replay import (build_viewer_payload, get_replay_history, prepare_replay_data,)
 from mission_table import build_position_rows
 from orientation_view import build_rotation_panels
 
 import dash_ag_grid as dag
-import dash_ag_grid as dag
-import pandas as pd
-import plotly.express as px
 import time
 
 
+# Find the project root from this script's new location.
+project_dir = Path(__file__).resolve().parents[3]
 
-project_dir = Path(__file__).resolve().parents[2]
+data_dir = project_dir / "data"
+pov_dir = project_dir / "src" / "trajectory-visualizer" / "pov-plot"
 pov_dir = project_dir / "src/trajectory-visualizer/pov-plot"
 data_dir = project_dir / "data"
 
@@ -56,7 +55,7 @@ app.layout = [
             {"label": "Visão Local", "value": "third-person"},
             {"label": "Visão Global", "value": "mapa"},
         ],
-        value="third-person-view",
+        value="third-person",
         clearable=False,
         style={"width": "220px", "margin": "12px 24px", "color": "black"},
     ),
@@ -81,19 +80,14 @@ app.layout = [
         id="map-view",
         style={"display": "none"},
         children=[
-            # Arrange controls, table and map vertically.
             html.Div(
                 style={
-                    "display": "flex",
-                    "flexDirection": "column",
-                    "height": "calc(100dvh - 160px)",
-                    "minHeight": "520px",
-                    "gap": "12px",
-                    "padding": "0 20px 16px",
+                    "display": "flex", "flexDirection": "column",
+                    "height": "calc(100dvh - 160px)", "minHeight": "520px",
+                    "gap": "10px", "padding": "0 20px 16px",
                     "boxSizing": "border-box",
                 },
                 children=[
-                    # Mission time and playback controls.
                     html.Div(
                         style={
                             "flexShrink": 0,
@@ -183,180 +177,158 @@ app.layout = [
                             ),
                         ],
                     ),
-
-                    # Keep the coordinate table above the map.
                     html.Div(
+                        html.Button(
+                            "Ocultar painel", id="toggle-mission-sidebar",
+                            n_clicks=0,
+                            style={"padding": "8px 14px", "cursor": "pointer"},
+                            **{"aria-controls": "mission-sidebar", "aria-expanded": "true"},
+                        ),
+                        style={"textAlign": "right", "flexShrink": 0},
+                    ),
+                    # Five shares for the map; at most two for the sidebar.
+                    html.Div(
+                        id="mission-workspace",
                         style={
-                            "flexShrink": 0,
-                            "backgroundColor": "#ffffff",
-                            "color": "#18253b",
-                            "border": "1px solid #e2e8f0",
-                            "borderRadius": "10px",
-                            "padding": "10px 12px",
+                            "display": "grid",
+                            "gridTemplateColumns": "minmax(0, 5fr) minmax(0, 2fr)",
+                            "flex": "1 1 0", "minHeight": "220px", "minWidth": 0,
                         },
                         children=[
-                            html.H3(
-                                "Coordenadas no instante selecionado",
-                                style={
-                                    "margin": "0 0 6px",
-                                    "fontSize": "16px",
-                                },
-                            ),
-
-                            html.P(
-                                "Última posição conhecida. "
-                                "Idade = tempo selecionado − tempo da medição. "
-                                "Z mantém o valor original do log.",
-                                style={
-                                    "margin": "0 0 8px",
-                                    "fontSize": "12px",
-                                    "color": "#64748b",
-                                },
-                            ),
-
-                            # Expand or collapse the rotation matrices.
-                            html.Details(
-                                open=True,
-                                style={
-                                    "flexShrink": 0,
-                                    "backgroundColor": "#f8fafc",
-                                    "color": "#18253b",
-                                    "borderRadius": "10px",
-                                    "padding": "10px 12px",
-                                },
-                                children=[
-                                    html.Summary(
-                                        "Matrizes de rotação",
-                                        style={
-                                            "fontWeight": "bold",
-                                            "cursor": "pointer",
-                                        },
-                                    ),
-
-                                    # Scroll the panels if vertical space is limited.
-                                    html.Div(
-                                        style={
-                                            "maxHeight": "210px",
-                                            "overflowY": "auto",
-                                            "marginTop": "10px",
-                                        },
-                                        children=[
-                                            html.P(
-                                                "Conversão dos quaterniões [x, y, z, w]. "
-                                                "A direção entre referenciais está por confirmar.",
-                                                style={
-                                                    "fontSize": "12px",
-                                                    "color": "#64748b",
-                                                    "margin": "0 0 10px",
-                                                },
-                                            ),
-
-                                            html.Div(
-                                                id="rotation-matrices",
-                                                children=build_rotation_panels(
-                                                    get_replay_history(replay_logs, 0.0)
-                                                ),
-                                                style={
-                                                    "display": "grid",
-                                                    "gridTemplateColumns": (
-                                                        "repeat(auto-fit, minmax(220px, 1fr))"
-                                                    ),
-                                                    "gap": "12px",
-                                                },
-                                            ),
-                                        ],
-                                    ),
-                                ],
-                            ),
-
-                            # Scroll the table instead of expanding the panel.
                             html.Div(
                                 style={
-                                    "maxHeight": "160px",
-                                    "overflowY": "auto",
+                                    "flex": "1 1 0",
+                                    "minHeight": "220px",
+                                    "minWidth": 0,
+                                    "position": "relative",
+                                    "borderRadius": "10px",
+                                    "overflow": "hidden",
                                 },
                                 children=[
-                                    dag.AgGrid(
-                                        id="mission-position-table",
-                                        columnDefs=[
-                                            {
-                                                "headerName": "Robô",
-                                                "field": "robot",
-                                            },
-                                            {
-                                                "headerName": "Estado",
-                                                "field": "status",
-                                            },
-                                            {
-                                                "headerName": "Latitude (°)",
-                                                "field": "latitude",
-                                            },
-                                            {
-                                                "headerName": "Longitude (°)",
-                                                "field": "longitude",
-                                            },
-                                            {
-                                                "headerName": "Z — valor do log",
-                                                "field": "position_z",
-                                            },
-                                            {
-                                                "headerName": "Medição (s)",
-                                                "field": "record_time_s",
-                                            },
-                                            {
-                                                "headerName": "Idade (s)",
-                                                "field": "age_s",
-                                            },
-                                        ],
-                                        rowData=[],
-                                        defaultColDef={
-                                            "resizable": True,
-                                            "sortable": False,
-                                            "flex": 1,
-                                            "minWidth": 130,
+                                    dcc.Graph(
+                                        id="mission-map",
+                                        figure=build_trajectory_map(
+                                            get_replay_history(replay_logs, 0.0),
+                                            replay_logs,
+                                        ),
+                                        responsive=True,
+                                        style={
+                                            "position": "absolute",
+                                            "inset": 0,
+                                            "height": "100%",
+                                            "width": "100%",
                                         },
-                                        dashGridOptions={
-                                            "domLayout": "autoHeight",
-                                            "rowHeight": 32,
-                                            "headerHeight": 34,
-                                            "animateRows": False,
+                                        config={
+                                            "responsive": True,
+                                            "scrollZoom": True,
+                                            "displaylogo": False,
                                         },
-                                        style={"width": "100%"},
                                     ),
                                 ],
                             ),
-                        ],
-                    ),
-
-                    # Let the map fill the remaining vertical space.
-                    html.Div(
-                        style={
-                            "flex": "1 1 0",
-                            "minHeight": "220px",
-                            "minWidth": 0,
-                            "position": "relative",
-                            "borderRadius": "10px",
-                            "overflow": "hidden",
-                        },
-                        children=[
-                            dcc.Graph(
-                                id="mission-map",
-                                figure=build_trajectory_map(
-                                    get_replay_history(replay_logs, 0.0),
-                                    replay_logs,
-                                ),
-                                responsive=True,
+                            html.Aside(
+                                id="mission-sidebar",
                                 style={
-                                    "position": "absolute",
-                                    "inset": 0,
-                                    "height": "100%",
-                                    "width": "100%",
+                                    "minWidth": 0, "minHeight": 0,
+                                    "overflow": "auto", "boxSizing": "border-box",
+                                    "padding": "12px", "backgroundColor": "#f8fafc",
+                                    "color": "#18253b", "borderLeft": "1px solid #e2e8f0",
                                 },
-                                config={
-                                    "responsive": True,
-                                    "scrollZoom": True,
-                                    "displaylogo": False,
-                                },
+                                children=[
+                                    html.Label("Informação a apresentar", htmlFor="sidebar-section"),
+                                    dcc.Dropdown(
+                                        id="sidebar-section",
+                                        options=[
+                                            {"label": "Coordenadas", "value": "coordinates"},
+                                            {"label": "Distâncias", "value": "distances"},
+                                            {"label": "Matrizes de rotação", "value": "rotations"},
+                                        ],
+                                        value="coordinates", clearable=False, searchable=False,
+                                        style={"margin": "8px 0 16px"},
+                                    ),
+                                    # Keep all outputs mounted so existing callbacks still work.
+                                    html.Div(id="sidebar-coordinates", children=[
+                                        html.H3("Coordenadas", style={"fontSize": "16px"}),
+                                        html.P("Última posição conhecida. Idade = tempo selecionado − tempo da medição. Z mantém o valor do log.", style={"fontSize": "12px"}),
+                                        html.Div(children=[
+                                            dag.AgGrid(
+                                                id="mission-position-table",
+                                                columnDefs=[
+                                                    {
+                                                        "headerName": "Robô",
+                                                        "field": "robot",
+                                                    },
+                                                    {
+                                                        "headerName": "Estado",
+                                                        "field": "status",
+                                                    },
+                                                    {
+                                                        "headerName": "Latitude (°)",
+                                                        "field": "latitude",
+                                                    },
+                                                    {
+                                                        "headerName": "Longitude (°)",
+                                                        "field": "longitude",
+                                                    },
+                                                    {
+                                                        "headerName": "Z — valor do log",
+                                                        "field": "position_z",
+                                                    },
+                                                    {
+                                                        "headerName": "Medição (s)",
+                                                        "field": "record_time_s",
+                                                    },
+                                                    {
+                                                        "headerName": "Idade (s)",
+                                                        "field": "age_s",
+                                                    },
+                                                ],
+                                                rowData=[],
+                                                defaultColDef={
+                                                    "resizable": True,
+                                                    "sortable": False,
+                                                    "flex": 1,
+                                                    "minWidth": 130,
+                                                },
+                                                dashGridOptions={
+                                                    "domLayout": "autoHeight",
+                                                    "rowHeight": 32,
+                                                    "headerHeight": 34,
+                                                    "animateRows": False,
+                                                },
+                                                style={"width": "100%"},
+                                            )
+                                        ], style={"overflowX": "auto", "minWidth": 0}),
+                                    ]),
+                                    html.Div(id="sidebar-distances", style={"display": "none"}, children=[
+                                        html.H3("Distâncias", style={"fontSize": "16px"}),
+                                        html.Div(id="mission-distance-panel", children="A medição de distâncias entre robôs ainda não está ligada a este painel."),
+                                    ]),
+                                    html.Div(id="sidebar-rotations", style={"display": "none"}, children=[
+                                        html.P(
+                                            "Conversão dos quaterniões [x, y, z, w]. "
+                                            "A direção entre referenciais está por confirmar.",
+                                            style={
+                                                "fontSize": "12px",
+                                                "color": "#64748b",
+                                                "margin": "0 0 10px",
+                                            },
+                                        ),
+                                        html.Div(
+                                            id="rotation-matrices",
+                                            children=build_rotation_panels(
+                                                get_replay_history(replay_logs, 0.0)
+                                            ),
+                                            style={
+                                                "display": "grid",
+                                                "gridTemplateColumns": (
+                                                    "minmax(0, 1fr)"
+                                                ),
+                                                "gap": "12px",
+                                            },
+                                        ),
+                                    ]),
+                                ],
                             ),
                         ],
                     ),
@@ -364,15 +336,53 @@ app.layout = [
             ),
         ],
     ),
-    # dcc.Graph(
-    #     figure=fig,
-    #     style={'height': '85vh', 'width': '100%'},
-    #     config={'responsive': True},
-    # ),
-    # dcc.RadioItems(options=['Robot 1', 'Robot 4', 'Robot 7'], value='Robot 1', id='viewTable', inline=True),
-    # dag.AgGrid(id='sendTable', rowData=[], columnDefs=[], dashGridOptions={'suppressFieldDotNotation': True})
 ]
 
+
+# Sidebar visibility and section selection.
+@callback(
+    Output("mission-workspace", "style"),
+    Output("mission-sidebar", "style"),
+    Output("toggle-mission-sidebar", "children"),
+    Output("toggle-mission-sidebar", "aria-expanded"),
+    Input("toggle-mission-sidebar", "n_clicks"),
+)
+def toggle_mission_sidebar(n_clicks):
+    """Hide the sidebar and let the map use the full available width."""
+    visible = (n_clicks or 0) % 2 == 0
+    workspace_style = {
+        "display": "grid",
+        "gridTemplateColumns": (
+            "minmax(0, 5fr) minmax(0, 2fr)" if visible else "minmax(0, 1fr)"
+        ),
+        "flex": "1 1 0", "minHeight": "220px", "minWidth": 0,
+    }
+    sidebar_style = {
+        "display": "block" if visible else "none",
+        "minWidth": 0, "minHeight": 0, "overflow": "auto",
+        "boxSizing": "border-box", "padding": "12px",
+        "backgroundColor": "#f8fafc", "color": "#18253b",
+        "borderLeft": "1px solid #e2e8f0",
+    }
+    return (
+        workspace_style, sidebar_style,
+        "Ocultar painel" if visible else "Mostrar painel",
+        "true" if visible else "false",
+    )
+
+
+@callback(
+    Output("sidebar-coordinates", "style"),
+    Output("sidebar-distances", "style"),
+    Output("sidebar-rotations", "style"),
+    Input("sidebar-section", "value"),
+)
+def select_sidebar_section(section):
+    """Show one section without removing the other callback targets."""
+    return tuple(
+        {"display": "block" if section == name else "none"}
+        for name in ("coordinates", "distances", "rotations")
+    )
 
 
 @app.server.get('/api/robot-trajectories')
@@ -459,7 +469,7 @@ def update_mission_view(selected_time_s):
         f" / {mission_duration_s:.1f} s"
     )
 
-       # Match the order of the four Outputs.
+    # Match the order of the four Outputs.
     return (
         time_text,
         figure_patch,
