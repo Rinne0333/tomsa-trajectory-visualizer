@@ -2,13 +2,18 @@ import math
 
 import pandas as pd
 
-
+# Receives a dictionary of robot logs and prepares them for replay visualization
 def prepare_replay_data(robot_logs: dict[str, pd.DataFrame],) -> dict[str, pd.DataFrame]:
-    ns_per_second = 1_000_000_000
-    prepared_logs = {}      # Initalization of Returning Dictionary
+    """Prepare robot logs for replay visualization."""
 
-    # Dictionary of the 3 Robot Data -> Update data without changing the original
+    # Number of nanoseconds in one second
+    ns_per_second = 1_000_000_000
+    prepared_logs = {} 
+
+    # Loop through each robot's logs and treat the timestamp columns to create a unified timestamp in nanoseconds
     for robot_name, data in robot_logs.items():
+
+        # Copy the DataFrame to avoid modifying the original data
         prepared_data = data.copy()
 
         seconds = prepared_data["header.stamp.secs"]
@@ -17,18 +22,20 @@ def prepare_replay_data(robot_logs: dict[str, pd.DataFrame],) -> dict[str, pd.Da
         # Unify Both values in Nanoseconds
         prepared_data["timestamp_ns"] = (seconds * ns_per_second + nanoseconds)
 
+        # Sort the DataFrame by the new timestamp column to ensure chronological order
         prepared_logs[robot_name] = prepared_data.sort_values(by="timestamp_ns", kind="stable")
 
-    # Start Mission Instant
+    # Find the earliest timestamp across all robots to establish a common temporal origin
     mission_start_ns = min(
         data["timestamp_ns"].iloc[0]
         for data in prepared_logs.values()
     )
 
-    # Apply same Temporal Origin to every register
+    # Calculate the mission time in seconds for each robot's logs relative to the earliest timestamp
     for data in prepared_logs.values():
         data["mission_time_s"] = (data["timestamp_ns"] - mission_start_ns) / ns_per_second
 
+    # Return the prepared logs with the new timestamp and mission time columns
     return prepared_logs
 
 
@@ -89,23 +96,23 @@ def build_viewer_payload(
         "robots": robots,
     }
 
+# Get the history of each robot's records up to a selected mission time
 def get_replay_history(
     prepared_logs: dict[str, pd.DataFrame],
     selected_time_s: float,
 ) -> dict[str, pd.DataFrame]:
     """Return each robot's records up to the selected mission time."""
 
-    # Store the filtered data for each robot.
     history = {}
 
-    # Loop through robot names and their DataFrames.
+    # Loop through each robot's prepared logs and filter the records based on the selected mission time
     for robot_name, data in prepared_logs.items():
 
-        # True for records at or before the selected time.
+        # Boolean mask to filter row where the mission time is less than or equal to the selected time
         mask = data["mission_time_s"] <= selected_time_s
 
-        # Keep matching rows without changing the original data.
+        # Store the filtered DataFrame in the history dictionary for each robot
         history[robot_name] = data.loc[mask]
 
-    # A robot with no records yet has an empty DataFrame.
+    # Return the history dictionary 
     return history

@@ -97,7 +97,7 @@ def load_robot_log(csv_path: Path) -> pd.DataFrame:
             f"File '{csv_path.name}' contains no records."
         )
 
-    # Convert columns to floats
+    # Convert columns to numeric values 
     for column in NUMERIC_COLUMNS:
         converted = pd.to_numeric(data[column], errors="coerce")
 

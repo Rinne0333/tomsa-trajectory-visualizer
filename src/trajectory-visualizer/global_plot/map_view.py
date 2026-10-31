@@ -2,44 +2,48 @@ import pandas as pd
 import plotly.graph_objects as go
 from dash import Patch
 
-
+# Robot colors list
 ROBOT_COLORS = {
     "Robot 1": "#2563eb",
     "Robot 4": "#ea580c",
     "Robot 7": "#9333ea",
 }
 
+# Column names for latitude and longitude in the DataFrame used on the map
 LAT = "pose.pose.position.x"
 LON = "pose.pose.position.y"
 
-
+# Reduce the number of records used to draw a trajectory
 def simplify_path(
     data: pd.DataFrame,
     max_points: int = 1000,
 ) -> pd.DataFrame:
     """Reduce line detail while keeping both endpoints."""
 
+    # When the number of records is less than or equal to the maximum allowed, return the original data
     if len(data) <= max_points:
         return data
 
+    # Calculate evenly spaced row positions, including both endpoints
     positions = [
         i * (len(data) - 1) // (max_points - 1)
         for i in range(max_points)
     ]
 
+    # Select row by position instead of index label
     return data.iloc[positions]
 
-
+# Prepare the past path, current record and future GeoJSON line for one robot
 def get_robot_parts(history, full_data):
     """Prepare the past, current position and future path."""
 
-    # Simplify only the line used for drawing.
+    # Simplify only the line used for drawing
     past = simplify_path(history)
 
-    # Keep the exact latest record, or an empty table.
+    # Keep the exact latest record, or an empty table
     current = history.tail(1)
 
-    # Connect the current position to the future path.
+    # Start at the current record to connect the past and future paths
     start_index = max(len(history) - 1, 0)
     future = simplify_path(full_data.iloc[start_index:])
 
@@ -49,6 +53,7 @@ def get_robot_parts(history, full_data):
         "features": [],
     }
 
+    # Add a future line only when there are at least two records to connect
     if len(future) >= 2:
         source["features"].append(
             {
@@ -65,22 +70,27 @@ def get_robot_parts(history, full_data):
 
     return past, current, source
 
-
+# Build the map with past apths, currnt markers and future layers
 def build_trajectory_map(robot_history, prepared_logs):
     """Create the fixed map structure when the page loads."""
 
+    # Creates a new empty plot figure responsible for reuning all the traces and layers of the map
     fig = go.Figure()
+
+    # Store the future layers for each robot to be added to the map layout
     layers = []
 
+    # Get each Robot a name and a selected color
     for name, color in ROBOT_COLORS.items():
         past, current, source = get_robot_parts(
             robot_history[name],
             prepared_logs[name],
         )
 
-        # Create one permanent past trace for each robot.
+        # Add a permanent past-path trace for a robot
         fig.add_trace(
             go.Scattermap(
+                # Use a unique identifier for the trace to avoid conflicts with other traces
                 uid=f"{name}-past",
                 name=name,
                 legendgroup=name,
@@ -93,7 +103,7 @@ def build_trajectory_map(robot_history, prepared_logs):
             )
         )
 
-        # Create the marker even when its coordinates are empty.
+        # Add a permanent current position marker
         fig.add_trace(
             go.Scattermap(
                 uid=f"{name}-current",
@@ -160,34 +170,39 @@ def build_trajectory_map(robot_history, prepared_logs):
 
     return fig
 
-
+# Updates the drawing data while keeping the existing map struct
 def update_trajectory_map(robot_history, prepared_logs):
     """Update coordinates without replacing the map structure."""
 
+    # Collect the changes to be applied to the existing map figure
     patch = Patch()
 
+    # Get each robot position in the configured robot order
     for index, name in enumerate(ROBOT_COLORS):
+
+        # Prepare robot's past, current and futue data
         past, current, source = get_robot_parts(
             robot_history[name],
             prepared_logs[name],
         )
 
-        # Each robot has two traces: past line, then current marker.
+        # Each robot has two traces: past line, then current marker
         line_index = index * 2
         marker_index = line_index + 1
 
-        # Update the past line coordinates.
+        # Replace the past line's coordinates with the new ones
         patch["data"][line_index]["lat"] = past[LAT].tolist()
         patch["data"][line_index]["lon"] = past[LON].tolist()
 
-        # Update the exact current position and its hover information.
+        # Replace the current marker's coordinates and custom data with the new ones
         patch["data"][marker_index]["lat"] = current[LAT].tolist()
         patch["data"][marker_index]["lon"] = current[LON].tolist()
         patch["data"][marker_index]["customdata"] = (
             current[["mission_time_s"]].to_numpy().tolist()
         )
 
-        # Update only the future layer's geometry.
+        # Replace the future layer's source with the new one
         patch["layout"]["map"]["layers"][index]["source"] = source
 
+    # Return the changes for the callback to apply to the figure
     return patch
