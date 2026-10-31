@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pandas as pd
 
+# String List of Required Columns in the CSV file
 REQUIRED_COLUMNS = [
     # Time and Identification Headers
     "Time",
@@ -39,6 +40,7 @@ REQUIRED_COLUMNS = [
     "twist.covariance",
 ]
 
+# String List of Numeric Columns in the CSV file
 NUMERIC_COLUMNS = [
     # Time and sequence.
     "Time",
@@ -68,33 +70,38 @@ NUMERIC_COLUMNS = [
     "twist.twist.angular.z",
 ]
 
+# Receive the CSV path and return a validated dataframe with the robot log
 def load_robot_log(csv_path: Path) -> pd.DataFrame:
     """Load a robot log and validate its structure and numeric fields."""
+
+    # Creates a dataframe from the CSV file content
     data = pd.read_csv(csv_path)
 
-    # Check required columns.
     missing_columns = []
 
+    # Checks for missing required columns
     for column in REQUIRED_COLUMNS:
         if column not in data.columns:
             missing_columns.append(column)
 
+    # Reject a file that is missing required columns
     if missing_columns:
         raise ValueError(
             f"File '{csv_path.name}' is missing required columns: "
             f"{missing_columns}"
         )
 
-    # Reject a file that has a header but no records.
+    # Reject a file that has a header but no records
     if data.empty:
         raise ValueError(
             f"File '{csv_path.name}' contains no records."
         )
 
-    # Convert and validate each numeric column.
+    # Convert columns to floats
     for column in NUMERIC_COLUMNS:
         converted = pd.to_numeric(data[column], errors="coerce")
 
+        # Checks if converted pandas series has any NaN or infinite values, which indicates invalid data
         invalid_mask = (
             converted.isna()
             | (converted == float("inf"))
@@ -103,6 +110,7 @@ def load_robot_log(csv_path: Path) -> pd.DataFrame:
 
         invalid_count = invalid_mask.sum()
 
+        # invalid_count > 0: Exists missing, non-numeric or infinite values in the converted serie
         if invalid_count > 0:
             raise ValueError(
                 f"File '{csv_path.name}': column '{column}' contains "
