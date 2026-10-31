@@ -1,6 +1,6 @@
 import pandas as pd
 
-
+# Prepare one position summary at the selected mission time for the three robots, to be displayed in a table
 def build_position_rows(
     robot_history: dict[str, pd.DataFrame],
     prepared_logs: dict[str, pd.DataFrame],
@@ -8,12 +8,16 @@ def build_position_rows(
 ) -> list[dict]:
     """Build one table row per robot using its latest available record."""
 
+    # Store one dictionary per robot
     rows = []
 
+    # Process each robot's history and prepared logs
     for robot_name, full_data in prepared_logs.items():
+
+        # Get this robot's records up to the selected mission time
         history = robot_history[robot_name]
 
-        # Keep a row for robots that have not started yet.
+        # Keep a row for robots that have not started yet
         if history.empty:
             rows.append(
                 {
@@ -28,18 +32,19 @@ def build_position_rows(
             )
             continue
 
-        # Use the same latest record displayed on the map.
+        # Use the same latest record displayed on the map
         current = history.iloc[-1]
         record_time_s = float(current["mission_time_s"])
         last_time_s = float(full_data["mission_time_s"].iloc[-1])
 
-        # Keep the last position after the robot's log ends.
+        # Keep the last position after the robot's log ends
         status = (
             "Log terminado"
             if selected_time_s > last_time_s
             else "Em reprodução"
         )
 
+        # Store the latest position, its time and its age
         rows.append(
             {
                 "robot": robot_name,
@@ -52,4 +57,5 @@ def build_position_rows(
             }
         )
 
+    # Return the position summaries for presentation
     return rows
