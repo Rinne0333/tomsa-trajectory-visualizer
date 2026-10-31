@@ -2,20 +2,33 @@ from dash import Dash, Input, Output, State, callback, ctx, dcc, html
 from flask import jsonify, send_from_directory
 from pathlib import Path
 
-from data_loader import load_robot_log
-from map_view import build_trajectory_map, update_trajectory_map, ROBOT_COLORS
-from replay import (build_viewer_payload, get_replay_history, prepare_replay_data,)
-from mission_table import build_position_rows
-from orientation_view import build_rotation_panels as original_rotation_panels
+from global_plot.data_loader import load_robot_log
 
-from distances import build_distance_rows
+from global_plot.map_view import (
+    build_trajectory_map,
+    update_trajectory_map,
+    ROBOT_COLORS,
+)
+
+from global_plot.replay import (
+    build_viewer_payload,
+    get_replay_history,
+    prepare_replay_data,
+)
+
+from global_plot.mission_table import build_position_rows
+from global_plot.distances import build_distance_rows
+
+from global_plot.orientation_view import (
+    build_rotation_panels as original_rotation_panels,
+)
 
 import time
 import numpy as np
 
 
 # Find the project root from this script's new location.
-project_dir = Path(__file__).resolve().parents[3]
+project_dir = Path(__file__).resolve().parents[2]
 
 data_dir = project_dir / "data"
 pov_dir = project_dir / "src" / "trajectory-visualizer" / "pov-plot"

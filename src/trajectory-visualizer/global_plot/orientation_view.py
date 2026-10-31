@@ -1,6 +1,6 @@
 from dash import html
 
-from orientation import quaternion_to_matrix, check_rotation_matrix
+from .orientation import quaternion_to_matrix, check_rotation_matrix
 
 
 def build_rotation_panels(robot_history):
