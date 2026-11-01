@@ -3,12 +3,17 @@ from dash import html
 from .orientation import quaternion_to_matrix, check_rotation_matrix
 
 
+# Build a rotation card per robot using it's latest available record
 def build_rotation_panels(robot_history):
     """Build one rotation matrix panel for each robot."""
 
+    # STore the completed robot cards
     panels = []
 
+    # Process each robot's available history
     for robot_name, history in robot_history.items():
+
+        # Start the card with the robot's name
         content = [
             html.H4(
                 robot_name,
@@ -16,7 +21,7 @@ def build_rotation_panels(robot_history):
             )
         ]
 
-        # Do not invent an orientation before the first record.
+        # Check if exist measurements for the robot, if not show a message
         if history.empty:
             content.append(
                 html.P("Sem dados neste instante.")
@@ -26,7 +31,9 @@ def build_rotation_panels(robot_history):
             # Use the same latest record displayed on the map.
             current = history.iloc[-1]
 
+
             try:
+                # Convert a recorded quaternion to a rotation matrix
                 rotation = quaternion_to_matrix(
                     current["pose.pose.orientation.x"],
                     current["pose.pose.orientation.y"],
@@ -34,10 +41,11 @@ def build_rotation_panels(robot_history):
                     current["pose.pose.orientation.w"],
                 )
 
+                # Check the rotation matrix for orthogonality and determinant
                 validation = check_rotation_matrix(rotation)
 
+            # Display an error message if the quaternion is invalid or the rotation matrix is not proper
             except ValueError as error:
-                # Keep the remaining panels working if one quaternion is invalid.
                 content.append(
                     html.P(
                         f"Orientação inválida: {error}",
@@ -46,19 +54,25 @@ def build_rotation_panels(robot_history):
                 )
 
             else:
-                # Format only the displayed values.
+                # Store the three html rows of the matrix
                 matrix_rows = []
 
+                # Process one row at a time
                 for row in rotation:
+
+                    # Store the three cells of  the row
                     cells = []
 
                     for value in row:
+
+                        # Format the value to four decimals
                         text = f"{value:.4f}"
 
                         # Avoid displaying negative zero after rounding.
                         if text == "-0.0000":
                             text = "0.0000"
 
+                        # Create one table cell for the value, right-aligned with padding
                         cells.append(
                             html.Td(
                                 text,
@@ -69,8 +83,10 @@ def build_rotation_panels(robot_history):
                             )
                         )
 
+                    # Add the completed row to the matrix display
                     matrix_rows.append(html.Tr(cells))
 
+                # Add the completed matrix to the card, with a border and monospace font
                 content.append(
                     html.Table(
                         html.Tbody(matrix_rows),
@@ -85,7 +101,7 @@ def build_rotation_panels(robot_history):
                     )
                 )
 
-                # Show the time of the orientation measurement.
+                # Show the time of the orientation measurement
                 content.append(
                     html.Div(
                         f"Medição: {current['mission_time_s']:.1f} s",
@@ -97,9 +113,10 @@ def build_rotation_panels(robot_history):
                     )
                 )
 
-                # Display the numerical validation result.
+                # Display the numerical validation result
                 valid = validation["valid"]
 
+                # Show the determinant and validation status
                 content.append(
                     html.Div(
                         (
@@ -114,6 +131,7 @@ def build_rotation_panels(robot_history):
                     )
                 )
 
+        # Wrap this robot's content in a card with padding, border, and background color
         panels.append(
             html.Div(
                 children=content,
@@ -127,5 +145,6 @@ def build_rotation_panels(robot_history):
                 },
             )
         )
-
+        
+    # Return the list of completed robot cards
     return panels

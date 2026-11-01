@@ -1,6 +1,7 @@
 import numpy as np
 
 
+# Convert quaternion components to a rotation matrix
 def quaternion_to_matrix(
     x: float,
     y: float,
@@ -9,27 +10,30 @@ def quaternion_to_matrix(
 ) -> np.ndarray:
     """Convert an [x, y, z, w] quaternion to an active rotation matrix."""
 
-    # Store the quaternion components in a NumPy array.
+    # Store the quaternion components in a NumPy array
     quaternion = np.array([x, y, z, w], dtype=float)
 
-    # Reject missing or infinite values.
+    # Reject missing (NaN) or infinite values
     if not np.isfinite(quaternion).all():
         raise ValueError("Quaternion components must be finite.")
 
-    # Rescale first to avoid overflow when calculating the norm.
+    # Find the biggest value in the quaternion to avoid numerical issues when normalizing
     scale = np.max(np.abs(quaternion))
 
+    # Reject a quaternion with all components equal to zero
     if scale == 0:
         raise ValueError("A zero quaternion cannot represent a rotation.")
 
+    # Rescale the quaternion to avoid numerical issues when normalizing
     quaternion = quaternion / scale
 
     # Normalize the quaternion to unit length.
     quaternion = quaternion / np.linalg.norm(quaternion)
 
+    # Extract the normalized quaternion components for the matrix formula
     x, y, z, w = quaternion
 
-    # Build the rotation matrix from the normalized components.
+    # Build the rotation matrix from the normalized components
     rotation = np.array(
         [
             [
@@ -51,18 +55,21 @@ def quaternion_to_matrix(
         dtype=float,
     )
 
+    # Return the rotation matrix as a 3x3 NumPy array
     return rotation
 
+# Check wether a 3x3 matrix represents a poper rotation 
 def check_rotation_matrix(rotation: np.ndarray) -> dict:
     """Check orthogonality and determinant without rounding the matrix."""
 
-    # A rotation matrix must have three rows and three columns.
+    # Rejects matrixes that are not 3x3
     if rotation.shape != (3, 3):
         raise ValueError("Expected a 3x3 matrix.")
 
+    # Creae a 3x3 identity mtrix
     identity = np.eye(3)
 
-    # Compare R transpose multiplied by R with the identity matrix.
+    # Check whether R transpose multiplied by R is approximately identity
     orthogonal = np.allclose(
         rotation.T @ rotation,
         identity,
@@ -70,9 +77,10 @@ def check_rotation_matrix(rotation: np.ndarray) -> dict:
         rtol=0,
     )
 
-    # A proper rotation has determinant +1.
+    # Calculate the determinant: A proper rotation must have determinant +1
     determinant = float(np.linalg.det(rotation))
 
+    # Accept the matrix only when it is orthogonal and has a determinant of +1, within a small tolerance
     valid = orthogonal and np.isclose(
         determinant,
         1.0,
@@ -80,26 +88,9 @@ def check_rotation_matrix(rotation: np.ndarray) -> dict:
         rtol=0,
     )
 
+    # Return the individual checks and the overall validity as a dictionary
     return {
         "orthogonal": bool(orthogonal),
         "determinant": determinant,
         "valid": bool(valid),
     }
-
-# Test Library
-if __name__ == "__main__":
-    # A 90-degree rotation around the positive Z axis.
-    rotation = quaternion_to_matrix(0.0, 0.0, 1.0, 1.0)
-
-    # Rotate a vector initially aligned with the X axis.
-    vector = np.array([1.0, 0.0, 0.0])
-    rotated_vector = rotation @ vector
-
-    print("Rotation matrix:")
-    print(np.round(rotation, 6))
-
-    print("\nRotated vector:")
-    print(np.round(rotated_vector, 6))
-
-    print("\nValidation:")
-    print(check_rotation_matrix(rotation))
