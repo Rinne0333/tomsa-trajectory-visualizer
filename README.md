@@ -95,6 +95,8 @@ O carregamento rejeita ficheiros sem registos, colunas em falta e valores numér
 
 São utilizadas as APIs `go.Scattermap` e `dash.Patch`.
 
+Modelo de robô: [Weaver: Vectored 8 - Thruster ROV / AUV](https://sketchfab.com/3d-models/weaver-vectored-8-thruster-rov-auv-a34c315bae734a2eaae97a2029c0a016)
+
 ## Global View
 
 A Global View apresenta a missão num mapa e permite consultar os dados de cada instante.
