@@ -82,6 +82,19 @@ Cada CSV contém os registos de um robô. Os nomes das colunas devem corresponde
 
 O carregamento rejeita ficheiros sem registos, colunas em falta e valores numéricos vazios, não numéricos ou infinitos.
 
+### Bibliotecas utilizadas
+
+| Biblioteca | Utilização |
+|---|---|
+| Dash | Interface, callbacks, temporizador, estado e atualizações parciais |
+| Plotly | Mapa, linhas e marcadores |
+| Pandas | Leitura, validação, ordenação e filtragem dos CSV |
+| NumPy | Cálculos de distâncias, velocidades e matrizes de rotação |
+| Flask | Rotas da aplicação partilhada |
+| ThreeJS | Representação tridimensional |
+
+São utilizadas as APIs `go.Scattermap` e `dash.Patch`.
+
 ## Global View
 
 A Global View apresenta a missão num mapa e permite consultar os dados de cada instante.
@@ -97,18 +110,6 @@ A Global View apresenta a missão num mapa e permite consultar os dados de cada 
 - Painel lateral que pode ser ocultado.
 - Consulta de coordenadas, distâncias, matrizes de rotação e velocidades.
 - Seleção de um robot ou de todos nos painéis de coordenadas e velocidades.
-
-### Bibliotecas utilizadas
-
-| Biblioteca | Utilização |
-|---|---|
-| Dash | Interface, callbacks, temporizador, estado e atualizações parciais |
-| Plotly | Mapa, linhas e marcadores |
-| Pandas | Leitura, validação, ordenação e filtragem dos CSV |
-| NumPy | Cálculos de distâncias, velocidades e matrizes de rotação |
-| Flask | Rotas da aplicação partilhada |
-
-São utilizadas as APIs `go.Scattermap` e `dash.Patch`.
 
 ### Módulos e funções
 
@@ -252,3 +253,8 @@ A função `update_table()` tem o decorador de callback comentado; não controla
 
 ## Local View
 
+Controlo da visão local pode ser feito através de: 
+
+- Dropdown no topo do ecrã, onde se escolhe um robô para observar.
+- Painel na esquerda do ecrã, onde se consegue observar os valores de profundidade relativa e distancia entre os robôs que estejam na sua vizinhança.
+- Barra de scroll em baixo para dar playback á missão inteira do robô.

@@ -1,7 +1,5 @@
 #Dash Components
 dash
-dash-bootstrap-components
-dash_ag_grid
 plotly
 
 #Data Processing
@@ -10,6 +8,5 @@ pyyaml
 pandas
 
 #Data Visualization
-OSMPythonTools
 jupyterlab
 
