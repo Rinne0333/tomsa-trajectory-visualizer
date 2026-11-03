@@ -50,13 +50,15 @@ pov_dir = project_dir / "src" / "trajectory-visualizer" / "pov-plot"
 rd1 = load_robot_log(data_dir / "robot1_s1.csv")
 rd4 = load_robot_log(data_dir / "robot4_s1.csv")
 rd7 = load_robot_log(data_dir / "robot7_s1.csv")
+rd8 = load_robot_log(data_dir / "robot8_s1.csv")
 
 # Sort the logs and calulate mission time from a shared origin
 replay_logs = prepare_replay_data(
     {
         "Robot 1": rd1,
         "Robot 4": rd4,
-        "Robot 7": rd7
+        "Robot 7": rd7,
+        "Robot 8": rd8,
     }
 )
 

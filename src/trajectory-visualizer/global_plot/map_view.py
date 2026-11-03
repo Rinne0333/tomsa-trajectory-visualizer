@@ -7,6 +7,7 @@ ROBOT_COLORS = {
     "Robot 1": "#2563eb",
     "Robot 4": "#ea580c",
     "Robot 7": "#9333ea",
+    "Robot 8": "#16a34a",
 }
 
 # Column names for latitude and longitude in the DataFrame used on the map
